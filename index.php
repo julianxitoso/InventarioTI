@@ -325,7 +325,6 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
                         <option value="Tuquerres">Túquerres</option>
                         <option value="Huila">Huila</option>
                         <option value="Nacional">Nacional</option>
-                        <option value="Finansueños">Finansueños</option>
                     </select>
                 </div>
             </div>
