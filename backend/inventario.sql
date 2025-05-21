@@ -48,15 +48,15 @@ CREATE TABLE `activos_tecnologicos` (
   `regional` varchar(50) DEFAULT NULL,
   `detalles` text DEFAULT NULL,
   `fecha_registro` timestamp NOT NULL DEFAULT current_timestamp(),
-  `Empresa` varchar(255) NOT NULL,
-  `Codigo_Inv` varchar(50) NOT NULL
+  `empresa` varchar(255) NULL,
+  `Codigo_Inv` varchar(50) NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Volcado de datos para la tabla `activos_tecnologicos`
 --
 
-INSERT INTO `activos_tecnologicos` (`id`, `cedula`, `nombre`, `cargo`, `tipo_activo`, `marca`, `serie`, `procesador`, `ram`, `disco_duro`, `tipo_equipo`, `red`, `sistema_operativo`, `offimatica`, `antivirus`, `estado`, `valor_aproximado`, `regional`, `detalles`, `fecha_registro`, `Empresa`, `Codigo_Inv`) VALUES
+INSERT INTO `activos_tecnologicos` (`id`, `cedula`, `nombre`, `cargo`, `tipo_activo`, `marca`, `serie`, `procesador`, `ram`, `disco_duro`, `tipo_equipo`, `red`, `sistema_operativo`, `offimatica`, `antivirus`, `estado`, `valor_aproximado`, `regional`, `detalles`, `fecha_registro`, `empresa`, `Codigo_Inv`) VALUES
 (18, '25284515', 'Mary Murillo', 'Aux Contable', 'Computador', 'Asus', '123456', 'Core i5', '12 Gb', '512 Gb', 'Portátil', 'Ambas', 'Windows 10', 'Office 365', 'ESET NOD32 Antivirus', 'Regular', 2500000.00, 'Nacional', 'Bateria regular\r\nSe le instalo antivirus Eset Nod 32', '2025-05-13 21:30:24', '', ''),
 (19, '25284515', 'Mary Murillo', 'Aux Contable', 'Monitor', 'LG', '7896', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Dado de Baja', 600000.00, 'Nacional', 'Se le hizo mantenimineto a la pantalla', '2025-05-13 21:30:40', '', ''),
 (20, '25284515', 'Mary Murillo', 'Aux Contable', 'Combo Teclado y Mouse', 'Generico', '48522', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Bueno', 100000.00, 'Nacional', 'Bueno', '2025-05-13 21:30:59', '', ''),

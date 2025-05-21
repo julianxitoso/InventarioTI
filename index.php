@@ -18,7 +18,8 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
     let datosUsuarioFijados = {
         cedula: '',
         nombre: '',
-        cargo: ''
+        cargo: '',
+        empresa:''
     };
 
     function mostrarCamposComputador() {
@@ -61,12 +62,13 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
         const cedulaVal = document.getElementById('cedula').value;
         const nombreVal = document.getElementById('nombre').value;
         const cargoVal = document.getElementById('cargo').value;
+        const empresaVal = document.getElementById('empresa').value;
         var usuarioActualEl = document.getElementById("usuario-actual");
 
         if (usuarioFijado) {
-            usuarioActualEl.innerHTML = `Registrando activos para: <strong>${datosUsuarioFijados.nombre}</strong> (Cédula: ${datosUsuarioFijados.cedula}, Cargo: ${datosUsuarioFijados.cargo})`;
-        } else if (cedulaVal && nombreVal && cargoVal) {
-            usuarioActualEl.innerHTML = `Preparando para registrar activos a: <strong>${nombreVal}</strong> (Cédula: ${cedulaVal}, Cargo: ${cargoVal})`;
+            usuarioActualEl.innerHTML = `Registrando activos para: <strong>${datosUsuarioFijados.nombre}</strong> (Cédula: ${datosUsuarioFijados.cedula}, Cargo: ${datosUsuarioFijados.cargo}, Empresa: ${datosUsuarioFijados})`;
+        } else if (cedulaVal && nombreVal && cargoVal && empresaVal) {
+            usuarioActualEl.innerHTML = `Preparando para registrar activos a: <strong>${nombreVal}</strong> (Cédula: ${cedulaVal}, Cargo: ${cargoVal}, Empresa: ${empresaVal})`;
         } else {
             usuarioActualEl.innerHTML = "<em>Por favor, ingrese datos completos del usuario.</em>";
         }
@@ -77,10 +79,11 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
         var cedulaInput = form.elements['cedula'];
         var nombreInput = form.elements['nombre'];
         var cargoInput = form.elements['cargo'];
+        var empresaInput = form.elements['empresa'];
 
         if (!usuarioFijado) {
-            if (!cedulaInput.value || !nombreInput.value || !cargoInput.value) {
-                alert("Por favor, complete los datos del usuario (Cédula, Nombre, Cargo) primero.");
+            if (!cedulaInput.value || !nombreInput.value || !cargoInput.value || !empresaInput.value) {
+                alert("Por favor, complete los datos del usuario (Cédula, Nombre, Cargo y empresa) primero.");
                 cedulaInput.focus();
                 return;
             }
@@ -116,10 +119,12 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
         if (!usuarioFijado) {
             datosUsuarioFijados.cedula = cedulaInput.value;
             datosUsuarioFijados.nombre = nombreInput.value;
-            datosUsuarioFijados.cargo = cargoInput.value;
+            datosUsuarioFijados.cargo = cargoInput.value;            
+            datosUsuarioFijados.empresa = empresaInput.value;
             cedulaInput.disabled = true;
             nombreInput.disabled = true;
             cargoInput.disabled = true;
+            empresaInput.disabled = true;
             usuarioFijado = true;
             actualizarNombreUsuarioDisplay(); 
             document.getElementById("btnGuardarActivo").textContent = "Guardar este Activo y Añadir Otro";
@@ -128,12 +133,12 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
         var formData = new FormData(form);
         formData.set('cedula', datosUsuarioFijados.cedula);
         formData.set('nombre', datosUsuarioFijados.nombre);
-        formData.set('cargo', datosUsuarioFijados.cargo);
+        formData.set('cargo', datosUsuarioFijados.cargo);        
+        formData.set('empresa', datosUsuarioFijados.empresa);
         
-        console.log("Enviando datos a guardar_activo.php:");
-        for (var pair of formData.entries()) {
-            console.log(pair[0] + ': ' + pair[1]);
-        }
+        
+        console.log(formData);
+        
 
         fetch('guardar_activo.php', {
             method: 'POST',
@@ -183,8 +188,9 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
         form.elements['cedula'].disabled = false;
         form.elements['nombre'].disabled = false;
         form.elements['cargo'].disabled = false;
+        form.elements['empresa'].disabled = false;
         usuarioFijado = false;
-        datosUsuarioFijados = { cedula: '', nombre: '', cargo: '' };
+        datosUsuarioFijados = { cedula: '', nombre: '', cargo: '', empresa: '' };
         actualizarNombreUsuarioDisplay();
         document.getElementById("btnGuardarActivo").textContent = "Guardar Activo";
         var tbody = document.getElementById('tabla-activos-guardados').getElementsByTagName('tbody')[0];
@@ -198,6 +204,7 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
         document.getElementById('cedula').addEventListener('input', actualizarNombreUsuarioDisplay);
         document.getElementById('nombre').addEventListener('input', actualizarNombreUsuarioDisplay);
         document.getElementById('cargo').addEventListener('input', actualizarNombreUsuarioDisplay);
+        document.getElementById('empresa').addEventListener('input', actualizarNombreUsuarioDisplay);
         mostrarCamposComputador(); 
     });
  </script>
@@ -212,7 +219,7 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
     #activo-form input:focus, #activo-form select:focus, #activo-form textarea:focus {
         outline: none; border-color: #86b7fe; box-shadow: 0 0 0 0.25rem rgba(13,110,253,0.25);
     }
-    #activo-form input[disabled] { background-color: #e9ecef; opacity: 1; }
+    #activo-form input[disabled], #activo-form select[disabled] { background-color: #e9ecef; opacity: 1; }
     .btn-form-action { padding: 0.5rem 1rem; border: none; border-radius: 0.375rem; color: white; font-size: 0.95rem; cursor: pointer; transition: background-color 0.2s ease-in-out; margin-right: 8px; }
     .btn-guardar-activo { background-color: #198754; } 
     .btn-guardar-activo:hover { background-color: #157347; }
@@ -260,6 +267,14 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
                 <div class="col-md-4 mb-3"><label for="cedula">Cédula</label><input type="text" class="form-control" id="cedula" name="cedula" required></div>
                 <div class="col-md-4 mb-3"><label for="nombre">Nombre</label><input type="text" class="form-control" id="nombre" name="nombre" required></div>
                 <div class="col-md-4 mb-3"><label for="cargo">Cargo</label><input type="text" class="form-control" id="cargo" name="cargo" required></div>
+                <div class="col-md-4 mb-3">
+                    <label for="empresa">Empresa</label>
+                    <select class="form-control" name="empresa" id="empresa" required>
+                        <option value="">Seleccione...</option>
+                        <option value="Finansueños">Finansueños</option>
+                        <option value="Arpesod">Arpesod</option>
+                    </select>
+                </div>
             </div>
             <hr> 
             <h6 class="mt-3">Datos Generales del Activo</h6>

@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cedula = sanitizar($_POST['cedula'] ?? null, $conexion);
     $nombre = sanitizar($_POST['nombre'] ?? null, $conexion);
     $cargo = sanitizar($_POST['cargo'] ?? null, $conexion);
+    $empresa = sanitizar(($_POST['empresa'] ?? null), $conexion);
     $tipo_activo = sanitizar($_POST['tipo'] ?? null, $conexion);
     $marca = sanitizar($_POST['marca'] ?? null, $conexion);
     $serie = sanitizar($_POST['serie'] ?? null, $conexion);
@@ -65,8 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($error)) {
         $sql = "INSERT INTO activos_tecnologicos (
                     cedula, nombre, cargo, tipo_activo, marca, serie, estado, valor_aproximado, detalles, regional,
-                    procesador, ram, disco_duro, tipo_equipo, red, sistema_operativo, offimatica, antivirus, fecha_registro
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
+                    procesador, ram, disco_duro, tipo_equipo, red, sistema_operativo, offimatica, antivirus, empresa, fecha_registro
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
         
         $stmt = $conexion->prepare($sql);
         if ($stmt === false) {
@@ -77,11 +78,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $stmt->bind_param(
-            "sssssssdssssssssss",
+            "sssssssdsssssssssss",
             $cedula, $nombre, $cargo, $tipo_activo, $marca, $serie, $estado,
             $valor_aproximado,
             $detalles, $regional, $procesador, $ram, $disco_duro, $tipo_equipo,
-            $red, $sistema_operativo, $offimatica, $antivirus
+            $red, $sistema_operativo, $offimatica, $antivirus, $empresa
         );
 
         if ($stmt->execute()) {
