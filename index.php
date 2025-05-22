@@ -1,421 +1,434 @@
 <?php
-// session_start(); // auth_check.php ya lo hace
+// session_start(); // auth_check.php ya lo incluye y gestiona
 require_once 'backend/auth_check.php';
-restringir_acceso_pagina(['admin', 'tecnico']); // Solo admin y técnico pueden acceder a registrar
+restringir_acceso_pagina(['admin', 'tecnico']);
 
-// Para el saludo en la navbar si lo necesitas
+require_once 'backend/db.php';
+if (isset($conn) && !isset($conexion)) { $conexion = $conn; }
+if (!isset($conexion) || !$conexion) { die("Error de conexión a la base de datos en index.php."); }
+$conexion->set_charset("utf8mb4");
+
 $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
-?>
+$rol_usuario_sesion = $_SESSION['rol_usuario'] ?? '';
 
+$regionales = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional'];
+$empresas_disponibles = ['Arpesod', 'Finansueños'];
+$opciones_tipo_activo = ['Computador', 'Monitor', 'Impresora', 'Escáner', 'DVR', 'Contadora Billetes', 'Contadora Monedas', 'Celular', 'Impresora Térmica', 'Combo Teclado y Mouse', 'Diadema', 'Adaptador Multipuertos / Red', 'Router', 'Otro'];
+$opciones_tipo_equipo = ['Portátil', 'Mesa', 'Todo en 1', 'N/A'];
+$opciones_red = ['Cableada', 'Inalámbrica', 'Ambas', 'N/A'];
+$opciones_estado_general = ['Bueno', 'Regular', 'Malo', 'Nuevo'];
+$opciones_so = ['Windows 10', 'Windows 11', 'Linux', 'MacOS', 'Otro SO', 'N/A SO'];
+$opciones_offimatica = ['Office 365', 'Office Home And Business', 'Office 2021', 'Office 2019', 'Office 2016', 'LibreOffice', 'Google Workspace', 'Otro Office', 'N/A Office'];
+$opciones_antivirus = ['Microsoft Defender', 'Bitdefender', 'ESET NOD32 Antivirus', 'McAfee Total Protection', 'Kaspersky', 'N/A Antivirus', 'Otro Antivirus'];
+
+$mensaje_global = $_SESSION['mensaje_global'] ?? null;
+$error_global = $_SESSION['error_global'] ?? null;
+unset($_SESSION['mensaje_global']);
+unset($_SESSION['error_global']);
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
- <meta charset="UTF-8">
- <title>Registro de Activos</title>
- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
- <script>
-    let usuarioFijado = false;
-    let datosUsuarioFijados = {
-        cedula: '',
-        nombre: '',
-        cargo: '',
-        empresa:''
+    <meta charset="UTF-8">
+    <title>Registrar Activos por Lote</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { background: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .container-main { margin-top: 20px; margin-bottom: 40px; max-width: 1100px; }
+        h3.page-title { color: #333; font-weight: 600; margin-bottom: 25px; }
+        .logo-container { text-align: center; margin-bottom: 5px; padding-top:10px; }
+        .logo-container img { width: 180px; height: 70px; object-fit: contain; }
+        .navbar-custom { background-color: #191970; }
+        .navbar-custom .nav-link { color: white !important; font-weight: 500; padding: 0.5rem 1rem;}
+        .navbar-custom .nav-link:hover, .navbar-custom .nav-link.active { background-color: #8b0000; color: white; }
+        .card.form-card { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: none; }
+        .form-label { font-weight: 500; color: #495057; }
+        .form-section { border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px; margin-bottom: 20px; background-color: #fff; }
+        .table-activos-agregados th { font-size: 0.9em; }
+        .table-activos-agregados td { font-size: 0.85em; vertical-align: middle; }
+
+        .star-rating { display: inline-block; direction: rtl; font-size: 0; }
+        .star-rating input[type="radio"] { display: none; }
+        .star-rating label.star-label { color: #ccc; font-size: 1.8rem; padding: 0 0.05em; cursor: pointer; display: inline-block; transition: color 0.2s ease-in-out; }
+        .star-rating input[type="radio"]:checked ~ label.star-label,
+        .star-rating label.star-label:hover,
+        .star-rating label.star-label:hover ~ label.star-label { color: #f5b301; }
+        .star-rating input[type="radio"]:checked + label.star-label:hover,
+        .star-rating input[type="radio"]:checked ~ label.star-label:hover,
+        .star-rating input[type="radio"]:checked ~ label.star-label:hover ~ label.star-label,
+        .star-rating label.star-label:hover ~ input[type="radio"]:checked ~ label.star-label { color: #f5b301; }
+        .btn-remove-asset { font-size: 0.8em; padding: 0.2rem 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="logo-container"><a href="menu.php"><img src="imagenes/logo3.png" alt="Logo"></a></div>
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container-fluid">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"><span class="navbar-toggler-icon" style="background-image: url(&quot;data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255,255,255,0.8)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e&quot;);"></span></button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'menu.php') ? 'active' : '' ?>" href="menu.php">Inicio</a></li>
+                    <?php if (tiene_permiso_para('crear_activo')): ?><li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'index.php') ? 'active' : '' ?>" aria-current="page" href="index.php">Registrar Activo</a></li><?php endif; ?>
+                    <?php if (tiene_permiso_para('editar_activo_detalles') || tiene_permiso_para('trasladar_activo') || tiene_permiso_para('dar_baja_activo') ): ?><li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'editar.php') ? 'active' : '' ?>" href="editar.php">Editar/Trasladar/Baja</a></li><?php endif; ?>
+                    <?php if (tiene_permiso_para('buscar_activo')): ?><li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'buscar.php') ? 'active' : '' ?>" href="buscar.php">Buscar Activos</a></li><?php endif; ?>
+                    <?php if (tiene_permiso_para('generar_informes')): ?><li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'informes.php') ? 'active' : '' ?>" href="informes.php">Informes</a></li><?php endif; ?>
+                    <?php if (tiene_permiso_para('ver_dashboard')): ?><li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'dashboard.php') ? 'active' : '' ?>" href="dashboard.php">Dashboard</a></li><?php endif; ?>
+                </ul>
+                <form class="d-flex ms-auto" action="logout.php" method="post"><button class="btn btn-outline-light" type="submit">Cerrar sesión</button></form>
+            </div>
+        </div>
+    </nav>
+
+<div class="container-main container mt-4">
+    <h3 class="page-title text-center mb-4">Registrar Activos (por Responsable)</h3>
+
+    <?php if ($mensaje_global): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert"><?= htmlspecialchars($mensaje_global) ?><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>
+    <?php endif; ?>
+    <?php if ($error_global): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert"><?= htmlspecialchars($error_global) ?><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>
+    <?php endif; ?>
+
+    <form action="guardar_activo.php" method="post" id="formRegistrarLoteActivos">
+        <div class="form-section" id="seccionResponsable">
+            <h5 class="mb-3 text-primary">1. Información del Responsable</h5>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="cedula" class="form-label">Cédula <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="cedula" name="responsable_cedula" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="nombre" class="form-label">Nombre Completo <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="nombre" name="responsable_nombre" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="cargo" class="form-label">Cargo <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="cargo" name="responsable_cargo" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="regional" class="form-label">Regional (Asignada al Responsable) <span class="text-danger">*</span></label>
+                    <select class="form-select" id="regional" name="responsable_regional" required>
+                        <option value="">Seleccione...</option>
+                        <?php foreach ($regionales as $r): ?><option value="<?= htmlspecialchars($r) ?>"><?= htmlspecialchars($r) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="empresa_activo" class="form-label">Empresa (Asignada al Responsable) <span class="text-danger">*</span></label>
+                    <select class="form-select" id="empresa_responsable" name="responsable_empresa" required>
+                        <option value="">Seleccione...</option>
+                        <?php foreach ($empresas_disponibles as $e): ?><option value="<?= htmlspecialchars($e) ?>"><?= htmlspecialchars($e) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <button type="button" class="btn btn-info btn-sm" id="btnConfirmarResponsable">Confirmar Responsable y Agregar Activos</button>
+        </div>
+
+        <div class="form-section" id="seccionAgregarActivo" style="display: none;">
+            <h5 class="mb-3 text-primary">2. Agregar Activo para <strong id="nombreResponsableDisplay"></strong></h5>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="tipo_activo" class="form-label">Tipo de Activo <span class="text-danger">*</span></label>
+                    <select class="form-select" id="tipo_activo" name="activo_tipo_activo">
+                        <option value="">Seleccione...</option>
+                        <?php foreach ($opciones_tipo_activo as $opcion): ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="marca" class="form-label">Marca <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="marca" name="activo_marca">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="serie" class="form-label">Serie / Serial <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="serie" name="activo_serie">
+                </div>
+            </div>
+            <div class="row">
+                 <div class="col-md-4 mb-3">
+                    <label for="estado" class="form-label">Estado del Activo <span class="text-danger">*</span></label>
+                    <select class="form-select" id="estado" name="activo_estado">
+                        <option value="Nuevo">Nuevo</option>
+                        <?php foreach ($opciones_estado_general as $opcion): if($opcion !== 'Nuevo' && $opcion !== 'Dado de Baja') { ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php } endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="valor_aproximado" class="form-label">Valor Aproximado <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" id="valor_aproximado" name="activo_valor_aproximado" step="0.01" min="0">
+                </div>
+                 <div class="col-md-4 mb-3">
+                    <label for="codigo_inv" class="form-label">Código Inventario (Opcional)</label>
+                    <input type="text" class="form-control" id="codigo_inv" name="activo_codigo_inv">
+                </div>
+            </div>
+            <div id="campos_computador_form_activo" style="display: none;">
+                 <hr class="my-3"><h6 class="mb-3 text-muted">Detalles Específicos (si es Computador)</h6>
+                 <div class="row">
+                    <div class="col-md-4 mb-3"><label for="activo_procesador" class="form-label">Procesador</label><input type="text" class="form-control" id="activo_procesador" name="activo_procesador"></div>
+                    <div class="col-md-4 mb-3"><label for="activo_ram" class="form-label">RAM</label><input type="text" class="form-control" id="activo_ram" name="activo_ram"></div>
+                    <div class="col-md-4 mb-3"><label for="activo_disco_duro" class="form-label">Disco Duro</label><input type="text" class="form-control" id="activo_disco_duro" name="activo_disco_duro"></div>
+                </div>
+                 <div class="row">
+                    <div class="col-md-3 mb-3"><label for="activo_tipo_equipo" class="form-label">Tipo Equipo</label><select class="form-select" id="activo_tipo_equipo" name="activo_tipo_equipo"><option value="">Seleccione...</option><?php foreach ($opciones_tipo_equipo as $opcion): ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php endforeach; ?></select></div>
+                    <div class="col-md-3 mb-3"><label for="activo_red" class="form-label">Red</label><select class="form-select" id="activo_red" name="activo_red"><option value="">Seleccione...</option><?php foreach ($opciones_red as $opcion): ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php endforeach; ?></select></div>
+                    <div class="col-md-3 mb-3"><label for="activo_so" class="form-label">SO</label><select class="form-select" id="activo_so" name="activo_sistema_operativo"><option value="">Seleccione...</option><?php foreach ($opciones_so as $opcion): ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php endforeach; ?></select></div>
+                    <div class="col-md-3 mb-3"><label for="activo_offimatica" class="form-label">Offimática</label><select class="form-select" id="activo_offimatica" name="activo_offimatica"><option value="">Seleccione...</option><?php foreach ($opciones_offimatica as $opcion): ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php endforeach; ?></select></div>
+                </div>
+                <div class="row"><div class="col-md-4 mb-3"><label for="activo_antivirus" class="form-label">Antivirus</label><select class="form-select" id="activo_antivirus" name="activo_antivirus"><option value="">Seleccione...</option><?php foreach ($opciones_antivirus as $opcion): ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php endforeach; ?></select></div></div>
+            </div>
+            <div class="mb-3">
+                <label for="detalles" class="form-label">Detalles Adicionales (Observaciones)</label>
+                <textarea class="form-control" id="detalles" name="activo_detalles" rows="2"></textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label d-block">Califica tu nivel de satisfacción con este activo:</label>
+                <div class="star-rating" id="activo_satisfaccion_rating_container">
+                    <input type="radio" id="activo_star5" name="activo_satisfaccion_rating" value="5" /><label class="star-label" for="activo_star5" title="5 estrellas">☆</label>
+                    <input type="radio" id="activo_star4" name="activo_satisfaccion_rating" value="4" /><label class="star-label" for="activo_star4" title="4 estrellas">☆</label>
+                    <input type="radio" id="activo_star3" name="activo_satisfaccion_rating" value="3" /><label class="star-label" for="activo_star3" title="3 estrellas">☆</label>
+                    <input type="radio" id="activo_star2" name="activo_satisfaccion_rating" value="2" /><label class="star-label" for="activo_star2" title="2 estrellas">☆</label>
+                    <input type="radio" id="activo_star1" name="activo_satisfaccion_rating" value="1" /><label class="star-label" for="activo_star1" title="1 estrella">☆</label>
+                </div>
+            </div>
+            <button type="button" class="btn btn-success" id="btnAgregarActivoTabla"><i class="bi bi-plus-circle"></i> Agregar Activo a la Lista</button>
+        </div>
+
+        <div class="form-section mt-4" id="seccionTablaActivos" style="display: none;">
+            <h5 class="mb-3 text-primary">3. Activos para Registrar a <strong id="nombreResponsableTabla"></strong></h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered table-hover table-activos-agregados">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th><th>Marca</th><th>Serie</th><th>Estado</th><th>Valor</th><th>Satisfacción</th><th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaActivosBody">
+                        </tbody>
+                </table>
+            </div>
+             <p id="noActivosMensaje" class="text-muted">Aún no se han agregado activos a la lista.</p>
+        </div>
+        
+        <div class="mt-4 d-grid gap-2">
+            <button type="submit" class="btn btn-primary btn-lg" id="btnGuardarTodo" disabled><i class="bi bi-save"></i> Guardar Todos los Activos y Finalizar</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Array para almacenar los activos agregados temporalmente
+    let activosParaGuardar = [];
+    let responsableConfirmado = false;
+
+    const formPrincipal = document.getElementById('formRegistrarLoteActivos');
+    const seccionResponsable = document.getElementById('seccionResponsable');
+    const seccionAgregarActivo = document.getElementById('seccionAgregarActivo');
+    const seccionTablaActivos = document.getElementById('seccionTablaActivos');
+    const btnConfirmarResponsable = document.getElementById('btnConfirmarResponsable');
+    const btnAgregarActivoTabla = document.getElementById('btnAgregarActivoTabla');
+    const btnGuardarTodo = document.getElementById('btnGuardarTodo');
+    const tablaActivosBody = document.getElementById('tablaActivosBody');
+    const noActivosMensaje = document.getElementById('noActivosMensaje');
+    
+    const camposResponsableIds = ['cedula', 'nombre', 'cargo', 'regional', 'empresa_responsable'];
+    const camposActivoIds = {
+        tipo_activo: 'tipo_activo', marca: 'marca', serie: 'serie', estado: 'estado',
+        valor_aproximado: 'valor_aproximado', codigo_inv: 'codigo_inv', detalles: 'detalles',
+        procesador: 'activo_procesador', ram: 'activo_ram', disco_duro: 'activo_disco_duro',
+        tipo_equipo: 'activo_tipo_equipo', red: 'activo_red', sistema_operativo: 'activo_so',
+        offimatica: 'activo_offimatica', antivirus: 'activo_antivirus',
+        satisfaccion_rating_name: 'activo_satisfaccion_rating' // name de los radios
     };
 
-    function mostrarCamposComputador() {
-        var tipoActivo = document.getElementById("tipo-activo").value;
-        var camposComputador = document.getElementById("campos-computador");
-        // Referencias a los divs específicos dentro de campos-computador
-        var soField = document.getElementById("so-field");
-        var offimaticaField = document.getElementById("offimatica-field");
-        var antivirusField = document.getElementById("antivirus-field"); 
-        var procesadorField = document.getElementById("procesador-field");
-        var ramField = document.getElementById("ram-field");
-        var discoField = document.getElementById("disco-field");
-        var tipoEquipoField = document.getElementById("tipo-equipo-field");
-        var redField = document.getElementById("red-field");
+    // Autocompletar datos del responsable y bloquear campos
+    btnConfirmarResponsable.addEventListener('click', function() {
+        let valido = true;
+        camposResponsableIds.forEach(id => {
+            const input = document.getElementById(id);
+            if (!input.value.trim()) {
+                valido = false;
+                input.classList.add('is-invalid');
+            } else {
+                input.classList.remove('is-invalid');
+            }
+        });
 
-        if (tipoActivo === "Computador") {
-            camposComputador.style.display = "block";
-            if(soField) soField.style.display = "block";
-            if(offimaticaField) offimaticaField.style.display = "block";
-            if(antivirusField) antivirusField.style.display = "block"; 
-            if(procesadorField) procesadorField.style.display = "block";
-            if(ramField) ramField.style.display = "block";
-            if(discoField) discoField.style.display = "block";
-            if(tipoEquipoField) tipoEquipoField.style.display = "block";
-            if(redField) redField.style.display = "block";
+        if (valido) {
+            camposResponsableIds.forEach(id => {
+                document.getElementById(id).setAttribute('readonly', true);
+            });
+            this.disabled = true;
+            this.innerHTML = '<i class="bi bi-check-circle-fill"></i> Responsable Confirmado';
+            seccionAgregarActivo.style.display = 'block';
+            seccionTablaActivos.style.display = 'block';
+            btnGuardarTodo.disabled = false; // Habilitar solo si hay responsable, pero idealmente si hay activos
+            document.getElementById('nombreResponsableDisplay').textContent = document.getElementById('nombre').value;
+            document.getElementById('nombreResponsableTabla').textContent = document.getElementById('nombre').value;
+            responsableConfirmado = true;
+             //Llamada opcional para buscar datos si existe la función y el endpoint
+            const cedulaVal = document.getElementById('cedula').value.trim();
+            if(cedulaVal && typeof buscar_datos_usuario_ajax === 'function'){
+                buscar_datos_usuario_ajax(cedulaVal, function(data){
+                    if(data.encontrado){
+                        if(document.getElementById('nombre').value === '') document.getElementById('nombre').value = data.nombre;
+                        if(document.getElementById('cargo').value === '') document.getElementById('cargo').value = data.cargo;
+                        // Actualizar el display si se autocompletó
+                        document.getElementById('nombreResponsableDisplay').textContent = document.getElementById('nombre').value;
+                        document.getElementById('nombreResponsableTabla').textContent = document.getElementById('nombre').value;
+                    }
+                });
+            }
         } else {
-            camposComputador.style.display = "none";
-            if(soField) soField.style.display = "none";
-            if(offimaticaField) offimaticaField.style.display = "none";
-            if(antivirusField) antivirusField.style.display = "none"; 
-            if(procesadorField) procesadorField.style.display = "none";
-            if(ramField) ramField.style.display = "none";
-            if(discoField) discoField.style.display = "none";
-            if(tipoEquipoField) tipoEquipoField.style.display = "none";
-            if(redField) redField.style.display = "none";
+            alert('Por favor, complete todos los campos de información del responsable.');
         }
-    }
+    });
+    
+    // Mostrar/ocultar campos de computador en formulario de activo
+    document.getElementById(camposActivoIds.tipo_activo).addEventListener('change', function() {
+        document.getElementById('campos_computador_form_activo').style.display = (this.value === 'Computador') ? 'block' : 'none';
+    });
 
-    function actualizarNombreUsuarioDisplay() {
-        const cedulaVal = document.getElementById('cedula').value;
-        const nombreVal = document.getElementById('nombre').value;
-        const cargoVal = document.getElementById('cargo').value;
-        const empresaVal = document.getElementById('empresa').value;
-        var usuarioActualEl = document.getElementById("usuario-actual");
-
-        if (usuarioFijado) {
-            usuarioActualEl.innerHTML = `Registrando activos para: <strong>${datosUsuarioFijados.nombre}</strong> (Cédula: ${datosUsuarioFijados.cedula}, Cargo: ${datosUsuarioFijados.cargo}, Empresa: ${datosUsuarioFijados})`;
-        } else if (cedulaVal && nombreVal && cargoVal && empresaVal) {
-            usuarioActualEl.innerHTML = `Preparando para registrar activos a: <strong>${nombreVal}</strong> (Cédula: ${cedulaVal}, Cargo: ${cargoVal}, Empresa: ${empresaVal})`;
-        } else {
-            usuarioActualEl.innerHTML = "<em>Por favor, ingrese datos completos del usuario.</em>";
+    btnAgregarActivoTabla.addEventListener('click', function() {
+        if (!responsableConfirmado) {
+            alert("Primero debe confirmar los datos del responsable.");
+            return;
         }
-    }
-
-    function guardarActivoActual() {
-        var form = document.getElementById('activo-form');
-        var cedulaInput = form.elements['cedula'];
-        var nombreInput = form.elements['nombre'];
-        var cargoInput = form.elements['cargo'];
-        var empresaInput = form.elements['empresa'];
-
-        if (!usuarioFijado) {
-            if (!cedulaInput.value || !nombreInput.value || !cargoInput.value || !empresaInput.value) {
-                alert("Por favor, complete los datos del usuario (Cédula, Nombre, Cargo y empresa) primero.");
-                cedulaInput.focus();
-                return;
+        const activo = {};
+        let activoValido = true;
+        let camposActivoForm = {}; // Para obtener elementos del DOM
+        
+        // Recolectar datos del formulario del activo
+        for (const key in camposActivoIds) {
+            if (key === 'satisfaccion_rating_name') {
+                const ratingChecked = document.querySelector(`input[name="${camposActivoIds[key]}"]:checked`);
+                activo[key] = ratingChecked ? ratingChecked.value : null;
+            } else {
+                const inputElement = document.getElementById(camposActivoIds[key]);
+                 if (inputElement) {
+                    activo[key] = inputElement.value.trim();
+                    camposActivoForm[key] = inputElement; // Guardar referencia al elemento
+                 } else {
+                    console.warn("Elemento no encontrado para activo: ", camposActivoIds[key]);
+                    activo[key] = ''; // o null
+                 }
             }
         }
 
-        var tipoActivoSelect = form.elements['tipo'];
-        var marcaInput = form.elements['marca'];
-        var serieInput = form.elements['serie'];
-        var estadoSelect = form.elements['estado'];
-        var valorInput = form.elements['valor'];
-        var regionalInput = form.elements['regional'];
+        // Validación básica de campos de activo
+        if (!activo.tipo_activo || !activo.marca || !activo.serie || !activo.estado || !activo.valor_aproximado) {
+            alert('Complete los campos obligatorios del activo: Tipo, Marca, Serie, Estado, Valor.');
+            activoValido = false;
+        }
+        // Validar que valor aproximado sea número
+        if(isNaN(parseFloat(activo.valor_aproximado)) && activo.valor_aproximado !== '') {
+            alert('El valor aproximado debe ser un número.');
+            activoValido = false;
+        }
 
-        if (!tipoActivoSelect.value || !marcaInput.value || !serieInput.value || !estadoSelect.value || !valorInput.value || !regionalInput.value ) {
-            alert("Por favor, complete los campos obligatorios del activo (Tipo, Marca, Serie, Estado, Valor, Regional) para poder guardarlo.");
-            if (!tipoActivoSelect.value) tipoActivoSelect.focus();
-            else if (!marcaInput.value) marcaInput.focus();
-            else if (!serieInput.value) serieInput.focus();
-            else if (!estadoSelect.value) estadoSelect.focus();
-            else if (!valorInput.value) valorInput.focus();
-            else if (!regionalInput.value) regionalInput.focus();
+
+        if (activoValido) {
+            activosParaGuardar.push(activo);
+            actualizarTablaActivos();
+            limpiarFormularioActivo(camposActivoForm);
+            document.getElementById(camposActivoIds.tipo_activo).dispatchEvent(new Event('change')); // Resetear campos de PC
+        }
+    });
+
+    function actualizarTablaActivos() {
+        tablaActivosBody.innerHTML = ''; // Limpiar tabla
+        if (activosParaGuardar.length === 0) {
+            noActivosMensaje.style.display = 'block';
+            btnGuardarTodo.disabled = true; // Deshabilitar si no hay activos
             return;
         }
-        if (isNaN(parseFloat(valorInput.value)) || parseFloat(valorInput.value) < 0) {
-            alert("El campo 'Valor Aprox.' debe ser un número válido y no negativo.");
-            valorInput.focus();
-            return;
-        }
+        noActivosMensaje.style.display = 'none';
+        btnGuardarTodo.disabled = false; // Habilitar si hay activos
 
-        if (tipoActivoSelect.value === "Computador") {
-            // Opcional: Validar campos específicos de computador aquí si son obligatorios
-        }
-
-        if (!usuarioFijado) {
-            datosUsuarioFijados.cedula = cedulaInput.value;
-            datosUsuarioFijados.nombre = nombreInput.value;
-            datosUsuarioFijados.cargo = cargoInput.value;            
-            datosUsuarioFijados.empresa = empresaInput.value;
-            cedulaInput.disabled = true;
-            nombreInput.disabled = true;
-            cargoInput.disabled = true;
-            empresaInput.disabled = true;
-            usuarioFijado = true;
-            actualizarNombreUsuarioDisplay(); 
-            document.getElementById("btnGuardarActivo").textContent = "Guardar este Activo y Añadir Otro";
-        }
-
-        var formData = new FormData(form);
-        formData.set('cedula', datosUsuarioFijados.cedula);
-        formData.set('nombre', datosUsuarioFijados.nombre);
-        formData.set('cargo', datosUsuarioFijados.cargo);        
-        formData.set('empresa', datosUsuarioFijados.empresa);
-        
-        
-        console.log(formData);
-        
-
-        fetch('guardar_activo.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.text())
-        .then(data => {
-            alert(data); 
-            if (data.toLowerCase().includes("registrado correctamente")) {
-                var table = document.getElementById('tabla-activos-guardados').getElementsByTagName('tbody')[0];
-                var row = table.insertRow();
-                var tipoActivoTexto = tipoActivoSelect.options[tipoActivoSelect.selectedIndex].text;
-                var estadoTexto = estadoSelect.options[estadoSelect.selectedIndex].text; 
-                row.insertCell(0).textContent = table.rows.length; 
-                row.insertCell(1).textContent = tipoActivoTexto;
-                row.insertCell(2).textContent = marcaInput.value;
-                row.insertCell(3).textContent = serieInput.value;
-                row.insertCell(4).textContent = estadoTexto; 
-
-                tipoActivoSelect.value = "";
-                marcaInput.value = "";
-                serieInput.value = "";
-                estadoSelect.value = ""; 
-                form.elements['procesador'].value = "";
-                form.elements['ram'].value = "";
-                form.elements['disco'].value = "";
-                form.elements['tipo_equipo'].value = "";
-                form.elements['red'].value = "";
-                form.elements['so'].value = ""; 
-                form.elements['offimatica'].value = ""; 
-                form.elements['antivirus'].value = ""; 
-                form.elements['valor'].value = ""; 
-                form.elements['detalles'].value = "";
-                mostrarCamposComputador(); 
-                tipoActivoSelect.focus();
+        activosParaGuardar.forEach((activo, index) => {
+            const fila = tablaActivosBody.insertRow();
+            fila.insertCell().textContent = activo.tipo_activo || 'N/A';
+            fila.insertCell().textContent = activo.marca || 'N/A';
+            fila.insertCell().textContent = activo.serie || 'N/A';
+            fila.insertCell().textContent = activo.estado || 'N/A';
+            fila.insertCell().textContent = activo.valor_aproximado || 'N/A';
+            
+            let estrellasDisplay = '';
+            if (activo.satisfaccion_rating_name) { // Usa la clave correcta con la que se guardó
+                for (let i = 0; i < 5; i++) {
+                    estrellasDisplay += (i < parseInt(activo.satisfaccion_rating_name)) ? '★' : '☆';
+                }
+            } else {
+                estrellasDisplay = 'N/A';
             }
-        })
-        .catch(error => {
-            console.error('Error al guardar el activo:', error);
-            alert('Error al guardar el activo. Revise la consola del navegador.');
+            fila.insertCell().innerHTML = `<span style="color: #f5b301; font-size:1.2em;">${estrellasDisplay}</span>`;
+            
+            const celdaAccion = fila.insertCell();
+            const btnEliminar = document.createElement('button');
+            btnEliminar.type = 'button';
+            btnEliminar.classList.add('btn', 'btn-danger', 'btn-sm', 'btn-remove-asset');
+            btnEliminar.innerHTML = '<i class="bi bi-trash"></i>';
+            btnEliminar.title = 'Eliminar de la lista';
+            btnEliminar.onclick = function() {
+                eliminarActivoDeLista(index);
+            };
+            celdaAccion.appendChild(btnEliminar);
         });
     }
 
-    function finalizarYNuevoUsuario() {
-        var form = document.getElementById('activo-form');
-        form.reset(); 
-        form.elements['cedula'].disabled = false;
-        form.elements['nombre'].disabled = false;
-        form.elements['cargo'].disabled = false;
-        form.elements['empresa'].disabled = false;
-        usuarioFijado = false;
-        datosUsuarioFijados = { cedula: '', nombre: '', cargo: '', empresa: '' };
-        actualizarNombreUsuarioDisplay();
-        document.getElementById("btnGuardarActivo").textContent = "Guardar Activo";
-        var tbody = document.getElementById('tabla-activos-guardados').getElementsByTagName('tbody')[0];
-        tbody.innerHTML = ""; 
-        mostrarCamposComputador(); 
-        form.elements['cedula'].focus();
+    function limpiarFormularioActivo(camposActivoFormElements) {
+         for (const key in camposActivoFormElements) {
+            if(camposActivoFormElements[key]) camposActivoFormElements[key].value = '';
+         }
+         // Resetear radios de estrellas
+        const radiosEstrellas = document.querySelectorAll(`input[name="${camposActivoIds.satisfaccion_rating_name}"]`);
+        radiosEstrellas.forEach(radio => radio.checked = false);
+        // El select de estado volver a 'Nuevo' por defecto
+        document.getElementById(camposActivoIds.estado).value = 'Nuevo';
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-        actualizarNombreUsuarioDisplay();
-        document.getElementById('cedula').addEventListener('input', actualizarNombreUsuarioDisplay);
-        document.getElementById('nombre').addEventListener('input', actualizarNombreUsuarioDisplay);
-        document.getElementById('cargo').addEventListener('input', actualizarNombreUsuarioDisplay);
-        document.getElementById('empresa').addEventListener('input', actualizarNombreUsuarioDisplay);
-        mostrarCamposComputador(); 
+    function eliminarActivoDeLista(index) {
+        activosParaGuardar.splice(index, 1);
+        actualizarTablaActivos();
+    }
+
+    formPrincipal.addEventListener('submit', function(event) {
+        if (activosParaGuardar.length === 0 || !responsableConfirmado) {
+            alert('Debe confirmar un responsable y agregar al menos un activo a la lista antes de guardar.');
+            event.preventDefault(); // Detener el envío del formulario
+            return false;
+        }
+        // Limpiar inputs del formulario de activo individual para no enviarlos como campos sueltos
+        for (const key in camposActivoIds) {
+             const inputElement = document.getElementById(camposActivoIds[key]);
+             if (inputElement && key !== 'satisfaccion_rating_name') { // No limpiar el name de los radios
+                inputElement.disabled = true; // Deshabilitar para que no se envíen
+             }
+        }
+        document.querySelectorAll(`input[name="${camposActivoIds.satisfaccion_rating_name}"]`).forEach(r => r.disabled = true);
+
+
+        // Crear inputs hidden para cada activo en la lista
+        activosParaGuardar.forEach((activo, index) => {
+            for (const propiedad in activo) {
+                const inputHidden = document.createElement('input');
+                inputHidden.type = 'hidden';
+                // Los nombres serán como activos[0][tipo_activo], activos[0][marca], etc.
+                // Y para la satisfacción: activos[0][satisfaccion_rating]
+                let fieldName = propiedad;
+                if (propiedad === 'satisfaccion_rating_name') { // Asegurar el nombre correcto para el backend
+                    fieldName = 'satisfaccion_rating';
+                }
+                inputHidden.name = `activos[${index}][${fieldName}]`;
+                inputHidden.value = activo[propiedad];
+                formPrincipal.appendChild(inputHidden);
+            }
+        });
+        // Los campos del responsable (cedula, nombre, etc.) ya tienen sus names y se enviarán.
     });
- </script>
- <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f8; }
-    #activo-form label { font-weight: 500; color: #37517e; margin-bottom: 0.3rem; display: block; }
-    #activo-form input, #activo-form select, #activo-form textarea {
-        width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #ced4da;
-        border-radius: 0.375rem; background: #fff; box-shadow: inset 0 1px 2px rgba(0,0,0,0.075);
-        margin-bottom: 1rem; font-size: 0.95rem; transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
-    }
-    #activo-form input:focus, #activo-form select:focus, #activo-form textarea:focus {
-        outline: none; border-color: #86b7fe; box-shadow: 0 0 0 0.25rem rgba(13,110,253,0.25);
-    }
-    #activo-form input[disabled], #activo-form select[disabled] { background-color: #e9ecef; opacity: 1; }
-    .btn-form-action { padding: 0.5rem 1rem; border: none; border-radius: 0.375rem; color: white; font-size: 0.95rem; cursor: pointer; transition: background-color 0.2s ease-in-out; margin-right: 8px; }
-    .btn-guardar-activo { background-color: #198754; } 
-    .btn-guardar-activo:hover { background-color: #157347; }
-    .btn-finalizar { background-color: #6c757d; } 
-    .btn-finalizar:hover { background-color: #5c636a; }
-    .logo-container { text-align: center; margin-bottom: 5px; padding-top:10px;}
-    .logo-container img { width: 180px; height: auto; }
-    .navbar-custom { background-color: #191970; }
-    .navbar-custom .nav-link { color: white !important; font-weight: 500; padding: 0.5rem 1rem;}
-    .navbar-custom .nav-link:hover { background-color: #8b0000; color: white; }
-    .card { border: none; }
-    #usuario-actual em { color: #6c757d; } 
- </style>
-</head>
-<body> 
- <div class="logo-container">
-  <a href="menu.php"><img src="imagenes/logo3.png" alt="Logo" style="height: 70px; width: auto;"></a>
- </div>
- <nav class="navbar navbar-expand-lg navbar-custom">
-    <div class="container-fluid">
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon" style="background-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255,255,255,0.8)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e\");"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="menu.php">Inicio</a></li>
-                <li class="nav-item"><a class="nav-link" href="editar.php">Editar Activos</a></li>
-                <li class="nav-item"><a class="nav-link" href="buscar.php">Buscar Activos</a></li>
-                <li class="nav-item"><a class="nav-link" href="informes.php">Informes</a></li>
-                <li class="nav-item"><a class="nav-link" href="dashboard.php">Dashboard</a></li>                
-            </ul>
-            <form class="d-flex ms-auto" action="logout.php" method="post">
-                <button class="btn btn-outline-light" type="submit">Cerrar sesión</button>
-            </form>
-        </div>
-    </div>
- </nav>
- <div class="container py-4"> 
-    <div class="card p-4 shadow-sm"> 
-        <h3 class="mb-3 text-center">Registro de Activos Tecnológicos</h3>
-        <h5 id="usuario-actual" class="text-center mb-4"></h5>
-        <form id="activo-form" onsubmit="return false;">
-            <h6>Datos del Usuario</h6>
-            <div class="row">
-                <div class="col-md-4 mb-3"><label for="cedula">Cédula</label><input type="text" class="form-control" id="cedula" name="cedula" required></div>
-                <div class="col-md-4 mb-3"><label for="nombre">Nombre</label><input type="text" class="form-control" id="nombre" name="nombre" required></div>
-                <div class="col-md-4 mb-3"><label for="cargo">Cargo</label><input type="text" class="form-control" id="cargo" name="cargo" required></div>
-                <div class="col-md-4 mb-3">
-                    <label for="empresa">Empresa</label>
-                    <select class="form-control" name="empresa" id="empresa" required>
-                        <option value="">Seleccione...</option>
-                        <option value="Arpesod">Arpesod</option>
-                        <option value="Finansueños">Finansueños</option>
-                    </select>
-                </div>
-            </div>
-            <hr> 
-            <h6 class="mt-3">Datos Generales del Activo</h6>
-            <div class="row mt-2">
-                <div class="col-md-4 mb-3">
-                    <label for="tipo-activo">Tipo de Activo</label>
-                    <select class="form-select" name="tipo" id="tipo-activo" required onchange="mostrarCamposComputador()">
-                        <option value="">Seleccione...</option>
-                        <option value="Computador">Computador</option>
-                        <option value="Monitor">Monitor</option>
-                        <option value="Impresora">Impresora</option>
-                        <option value="Escáner">Escáner</option>
-                        <option value="DVR">DVR</option>
-                        <option value="Contadora Billetes">Contadora Billetes</option>
-                        <option value="Contadora Monedas">Contadora Monedas</option>
-                        <option value="Celular">Celular</option>
-                        <option value="Impresora Térmica">Impresora Térmica</option>
-                        <option value="Combo Teclado y Mouse">Combo Teclado y Mouse</option>
-                        <option value="Diadema">Diadema</option>
-                        <option value="Adaptador Multipuertos / Red">Adaptador Multipuertos / Red</option>
-                        <option value="Router">Router</option>
-                    </select>
-                </div>
-                <div class="col-md-4 mb-3"><label for="marca">Marca</label><input type="text" class="form-control" id="marca" name="marca" required></div>
-                <div class="col-md-4 mb-3"><label for="serie">Serie</label><input type="text" class="form-control" id="serie" name="serie" required></div>
-            </div>
-            
-            <div class="row mt-0"> 
-                 <div class="col-md-4 mb-3">
-                    <label for="estado">Estado</label>
-                    <select class="form-select" name="estado" id="estado" required>
-                        <option value="">Seleccione...</option>
-                        <option value="Bueno">Bueno</option>
-                        <option value="Regular">Regular</option>
-                        <option value="Malo">Malo</option>
-                    </select>
-                </div>
-                <div class="col-md-4 mb-3"><label for="valor">Valor Aprox.</label><input type="number" class="form-control" id="valor" name="valor" required step="0.01" min="0"></div>
-                <div class="col-md-4 mb-3">
-                    <label for="regional">Regional</label>
-                    <select class="form-select" name="regional" id="regional" required>
-                        <option value="">Seleccione...</option>
-                        <option value="Popayan">Popayán</option>
-                        <option value="Bordo">Bordó</option>
-                        <option value="Santander">Santander</option>
-                        <option value="Valle">Valle</option>
-                        <option value="Pasto">Pasto</option>
-                        <option value="Tuquerres">Túquerres</option>
-                        <option value="Huila">Huila</option>
-                        <option value="Nacional">Nacional</option>
-                    </select>
-                </div>
-            </div>
 
-            <div id="campos-computador" style="display: none;">
-                 <hr>
-                 <h6 class="mt-3">Detalles Específicos de Computador</h6>
-                <div class="row mt-2">
-                    <div class="col-md-3 mb-3" id="procesador-field"><label for="procesador">Procesador</label><input type="text" class="form-control" id="procesador" name="procesador"></div>
-                    <div class="col-md-2 mb-3" id="ram-field"><label for="ram">Memoria RAM</label><input type="text" class="form-control" id="ram" name="ram"></div>
-                    <div class="col-md-3 mb-3" id="disco-field"><label for="disco">Disco Duro</label><input type="text" class="form-control" id="disco" name="disco"></div>
-                    <div class="col-md-2 mb-3" id="tipo-equipo-field">
-                        <label for="tipo_equipo">Tipo Equipo</label>
-                        <select class="form-select" name="tipo_equipo" id="tipo_equipo">
-                            <option value="">Seleccione...</option>
-                            <option value="Portátil">Portátil</option>
-                            <option value="Mesa">Mesa</option>
-                            <option value="Todo en 1">Todo en 1</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2 mb-3" id="red-field">
-                        <label for="red">Red</label>
-                        <select class="form-select" name="red" id="red">
-                            <option value="">Seleccione</option>
-                            <option value="Cableada">Cableada</option>
-                            <option value="Inalámbrica">Inalámbrica</option>
-                            <option value="Ambas">Ambas</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="row mt-0"> 
-                    <div class="col-md-4 mb-3" id="so-field">
-                        <label for="so">Sistema Operativo</label>
-                        <select class="form-select" name="so" id="so">
-                            <option value="">Seleccione...</option>
-                            <option value="Windows 10">Windows 10</option>
-                            <option value="Windows 11">Windows 11</option>
-                            <option value="Linux">Linux</option>
-                            <option value="MacOS">MacOS</option>
-                            <option value="Otro SO">Otro (Especificar en detalles)</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4 mb-3" id="offimatica-field">
-                        <label for="offimatica">Offimática</label>
-                        <select class="form-select" name="offimatica" id="offimatica">
-                            <option value="">Seleccione...</option>
-                            <option value="Office 365">Office 365</option>
-                            <option value="Office Home And Business">Office Home & Business</option>
-                            <option value="Office 2021">Office 2021</option>
-                            <option value="Office 2019">Office 2019</option>
-                            <option value="Office 2016">Office 2016</option>
-                            <option value="LibreOffice">LibreOffice</option>
-                            <option value="Google Workspace">Google Workspace</option>
-                            <option value="Otro Office">Otro</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4 mb-3" id="antivirus-field">
-                        <label for="antivirus">Antivirus</label>
-                        <select class="form-select" name="antivirus" id="antivirus">
-                            <option value="">Seleccione...</option>
-                            <option value="Microsoft Defender">Microsoft Defender</option>
-                            <option value="Bitdefender">Bitdefender</option>
-                            <option value="ESET NOD32 Antivirus">ESET NOD32 Antivirus</option>
-                            <option value="McAfee Total Protection">McAfee Total Protection</option>
-                            <option value="Kaspersky">Kaspersky</option>
-                            <option value="N/A Antivirus">Sin Antivirus</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-           
-            <div class="mb-3 mt-2"> 
-                <label for="detalles">Detalles Adicionales del Activo</label>
-                <textarea class="form-control" name="detalles" id="detalles" rows="2" placeholder="Si seleccionó 'Otro' en algún campo, especifique aquí. También otros detalles relevantes."></textarea>
-            </div>
-            <div class="mt-4 text-center"> 
-                <button type="button" class="btn-form-action btn-guardar-activo" id="btnGuardarActivo" onclick="guardarActivoActual()">Guardar Activo</button>
-                <button type="button" class="btn-form-action btn-finalizar" onclick="finalizarYNuevoUsuario()">Finalizar y Registrar Nuevo Usuario</button>
-            </div>
-        </form>
-        <hr class="my-4"> 
-        <h5 class="mt-3 text-center">Activos Guardados para este Usuario</h5>
-        <div class="table-responsive mt-3">
-            <table class="table table-sm table-striped table-hover" id="tabla-activos-guardados">
-                <thead class="table-light"><tr><th>#</th><th>Tipo</th><th>Marca</th><th>Serie</th><th>Estado</th></tr></thead>
-                <tbody>
-                </tbody>
-            </table>
-        </div>
-    </div>
- </div>
- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
- </body>
- </html>
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

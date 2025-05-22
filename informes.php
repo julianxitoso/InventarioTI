@@ -6,14 +6,15 @@ if (!isset($_SESSION['usuario'])) {
 }
 
 require_once 'backend/db.php';
-require_once 'backend/historial_helper.php'; // Incluir para las constantes de tipo de evento
+require_once 'backend/historial_helper.php'; 
 
 if (isset($conn) && !isset($conexion)) {
     $conexion = $conn;
 } elseif (!isset($conn) && !isset($conexion)) {
+    // Fallback de conexión (considera eliminar si db.php siempre define $conexion)
     $servername = "localhost";
     $username = "root";
-    $password = ""; // Tu contraseña
+    $password = ""; 
     $dbname = "inventario";
     $conexion = new mysqli($servername, $username, $password, $dbname);
     if ($conexion->connect_error) {
@@ -33,7 +34,7 @@ $tipo_informe_seleccionado = $_GET['tipo_informe'] ?? 'seleccione';
 $titulo_pagina_base = "Central de Informes";
 $titulo_informe_actual = "";
 $datos_para_tabla = [];
-$columnas_tabla_html = [];
+$columnas_tabla_html = []; 
 
 function getEstadoBadgeClass($estado) {
     $estadoLower = strtolower(trim($estado));
@@ -46,27 +47,39 @@ function getEstadoBadgeClass($estado) {
     }
 }
 
+function displayStars($rating, $totalStars = 5) {
+    if ($rating === null || !is_numeric($rating) || $rating < 0) return 'N/A';
+    $rating_calc = round(floatval($rating) * 2) / 2; 
+    $output = "<span style='color: #f5b301; font-size: 1.1em;'>"; 
+    for ($i = 1; $i <= $totalStars; $i++) {
+        if ($rating_calc >= $i) $output .= '★';
+        elseif ($rating_calc >= $i - 0.5) $output .= '★'; 
+        else $output .= '☆';
+    }
+    $output .= "</span> (" . number_format(floatval($rating), 1) . ")";
+    return $output;
+}
+
+
 if ($tipo_informe_seleccionado !== 'seleccione') {
     switch ($tipo_informe_seleccionado) {
         case 'general':
+            // ... (código existente sin cambios)
             $titulo_informe_actual = "Informe General de Activos (Agrupado por Responsable)";
-            // Usar 'Empresa' si ese es el nombre de la columna en la BD
             $query = "SELECT activos_tecnologicos.*, 
                              activos_tecnologicos.nombre as nombre_responsable_directo, 
                              activos_tecnologicos.cedula as cedula_responsable_directo,
                              activos_tecnologicos.cargo as cargo_responsable_directo
                       FROM activos_tecnologicos 
                       WHERE estado != 'Dado de Baja'
-                      ORDER BY cedula_responsable_directo ASC, nombre_responsable_directo ASC, id ASC";
+                      ORDER BY Empresa ASC, cedula_responsable_directo ASC, nombre_responsable_directo ASC, id ASC";
             $resultado_query = mysqli_query($conexion, $query);
-            if ($resultado_query) {
-                $datos_para_tabla = mysqli_fetch_all($resultado_query, MYSQLI_ASSOC);
-            } else {
-                error_log("Error en la consulta (general): " . mysqli_error($conexion));
-            }
+            if ($resultado_query) { $datos_para_tabla = mysqli_fetch_all($resultado_query, MYSQLI_ASSOC); }
+            else { error_log("Error en la consulta (general): " . mysqli_error($conexion)); }
             break;
 
         case 'por_tipo':
+            // ... (código existente sin cambios)
             $titulo_informe_actual = "Informe de Activos por Tipo";
             $query = "SELECT * FROM activos_tecnologicos WHERE estado != 'Dado de Baja' ORDER BY tipo_activo ASC, id ASC";
             $resultado_query = mysqli_query($conexion, $query);
@@ -75,7 +88,8 @@ if ($tipo_informe_seleccionado !== 'seleccione') {
             break;
 
         case 'por_estado':
-            $titulo_informe_actual = "Informe de Activos por Estado (Excluye 'Dado de Baja')";
+            // ... (código existente sin cambios)
+             $titulo_informe_actual = "Informe de Activos por Estado (Excluye 'Dado de Baja')";
             $query = "SELECT * FROM activos_tecnologicos WHERE estado != 'Dado de Baja' ORDER BY estado ASC, id ASC";
             $resultado_query = mysqli_query($conexion, $query);
             if ($resultado_query) $datos_para_tabla = mysqli_fetch_all($resultado_query, MYSQLI_ASSOC);
@@ -83,6 +97,7 @@ if ($tipo_informe_seleccionado !== 'seleccione') {
             break;
 
         case 'por_regional':
+            // ... (código existente sin cambios)
             $titulo_informe_actual = "Informe de Activos por Regional (Excluye 'Dado de Baja')";
             $query = "SELECT * FROM activos_tecnologicos WHERE estado != 'Dado de Baja' ORDER BY regional ASC, id ASC";
             $resultado_query = mysqli_query($conexion, $query);
@@ -90,89 +105,68 @@ if ($tipo_informe_seleccionado !== 'seleccione') {
             else error_log("Error en la consulta (por_regional): " . mysqli_error($conexion));
             break;
         
-        // <<< INICIO NUEVO INFORME POR EMPRESA >>>
         case 'por_empresa':
+            // ... (código existente sin cambios)
             $titulo_informe_actual = "Informe de Activos por Empresa (Excluye 'Dado de Baja')";
-            // Asumiendo que la columna se llama 'Empresa'. Si es 'empresa', cambia aquí.
-            $query = "SELECT * FROM activos_tecnologicos WHERE estado != 'Dado de Baja' ORDER BY Empresa ASC, id ASC";
+            $query = "SELECT * FROM activos_tecnologicos WHERE estado != 'Dado de Baja' AND Empresa IS NOT NULL AND Empresa != '' ORDER BY Empresa ASC, id ASC";
+            $resultado_query = mysqli_query($conexion, $query);
+            if ($resultado_query) { $datos_para_tabla = mysqli_fetch_all($resultado_query, MYSQLI_ASSOC); }
+            else { error_log("Error en la consulta (por_empresa): " . mysqli_error($conexion));}
+            break;
+
+        // <<< INICIO MODIFICACIÓN INFORME CALIFICACIÓN POR TIPO DE ACTIVO >>>
+        case 'calificacion_por_tipo': // El tipo_informe sigue siendo el mismo
+            $titulo_informe_actual = "Informe de Calificaciones Individuales por Activo"; // Título actualizado
+            // Nueva consulta para obtener detalles de cada activo con su calificación
+            $query = "SELECT 
+                        at.id, 
+                        at.tipo_activo, 
+                        at.marca, 
+                        at.serie, 
+                        at.nombre AS nombre_responsable, 
+                        at.cedula AS cedula_responsable, 
+                        at.Empresa, 
+                        at.regional,
+                        at.estado,
+                        at.satisfaccion_rating,
+                        at.fecha_registro
+                      FROM activos_tecnologicos at
+                      WHERE at.satisfaccion_rating IS NOT NULL AND at.estado != 'Dado de Baja'
+                      ORDER BY at.tipo_activo ASC, at.satisfaccion_rating DESC, at.id ASC";
             $resultado_query = mysqli_query($conexion, $query);
             if ($resultado_query) {
                 $datos_para_tabla = mysqli_fetch_all($resultado_query, MYSQLI_ASSOC);
             } else {
-                error_log("Error en la consulta (por_empresa): " . mysqli_error($conexion));
+                error_log("Error en la consulta (calificacion_individual_activos): " . mysqli_error($conexion));
             }
+            // Nuevas columnas para la tabla
+            $columnas_tabla_html = [
+                "Tipo de Activo", "Marca", "Serie", "Responsable", 
+                "Empresa", "Regional", "Estado", "Fecha Registro", "Calificación"
+            ];
             break;
-        // <<< FIN NUEVO INFORME POR EMPRESA >>>
+        // <<< FIN MODIFICACIÓN INFORME CALIFICACIÓN POR TIPO DE ACTIVO >>>
 
         case 'dados_baja':
+            // ... (código existente sin cambios)
             $titulo_informe_actual = "Informe de Activos Dados de Baja";
             $tipo_baja_const = defined('HISTORIAL_TIPO_BAJA') ? HISTORIAL_TIPO_BAJA : 'BAJA';
-            // Incluir Empresa en la selección si se quiere mostrar
-            $query = "SELECT
-                         at.id, at.tipo_activo, at.marca, at.serie, at.estado, at.Empresa,
-                         at.valor_aproximado, at.regional, at.detalles AS detalles_activo, at.fecha_registro,
-                         at.nombre AS nombre_ultimo_responsable, 
-                         at.cedula AS cedula_ultimo_responsable,   
-                         h_baja.descripcion_evento AS motivo_observaciones_baja,
-                         h_baja.fecha_evento AS fecha_efectiva_baja
-                      FROM
-                         activos_tecnologicos at
-                      LEFT JOIN (
-                           SELECT
-                               h1.id_activo,
-                               h1.descripcion_evento,
-                               h1.fecha_evento
-                           FROM
-                               historial_activos h1
-                           INNER JOIN (
-                               SELECT
-                                   id_activo,
-                                   MAX(id_historial) as max_id_hist_baja
-                               FROM
-                                   historial_activos
-                               WHERE
-                                   tipo_evento = '$tipo_baja_const'
-                               GROUP BY
-                                   id_activo
-                           ) h2 ON h1.id_activo = h2.id_activo AND h1.id_historial = h2.max_id_hist_baja
-                       ) h_baja ON at.id = h_baja.id_activo
-                       WHERE
-                           at.estado = 'Dado de Baja'
-                       ORDER BY
-                           COALESCE(h_baja.fecha_evento, at.fecha_registro) DESC, at.id ASC";
+            $query = "SELECT at.id, at.tipo_activo, at.marca, at.serie, at.estado, at.Empresa, at.valor_aproximado, at.regional, at.detalles AS detalles_activo, at.fecha_registro, at.nombre AS nombre_ultimo_responsable, at.cedula AS cedula_ultimo_responsable, h_baja.descripcion_evento AS motivo_observaciones_baja, h_baja.fecha_evento AS fecha_efectiva_baja FROM activos_tecnologicos at LEFT JOIN ( SELECT h1.id_activo, h1.descripcion_evento, h1.fecha_evento FROM historial_activos h1 INNER JOIN (SELECT id_activo, MAX(id_historial) as max_id_hist_baja FROM historial_activos WHERE tipo_evento = '$tipo_baja_const' GROUP BY id_activo) h2 ON h1.id_activo = h2.id_activo AND h1.id_historial = h2.max_id_hist_baja ) h_baja ON at.id = h_baja.id_activo WHERE at.estado = 'Dado de Baja' ORDER BY COALESCE(h_baja.fecha_evento, at.fecha_registro) DESC, at.id ASC";
             $resultado_query = mysqli_query($conexion, $query);
-            if ($resultado_query) {
-                $datos_para_tabla = mysqli_fetch_all($resultado_query, MYSQLI_ASSOC);
-            } else {
-                error_log("Error en la consulta (dados_baja): " . mysqli_error($conexion));
-            }
-            // Si se añade Empresa a la tabla de dados_baja, añadir aquí el header.
-            $columnas_tabla_html = [
-                "ID Activo", "Tipo Activo", "Marca", "Serie", "Empresa", "Últ. Responsable",
-                "Fecha Efectiva Baja", "Motivo/Observaciones de Baja", "Acciones"
-            ];
+            if ($resultado_query) $datos_para_tabla = mysqli_fetch_all($resultado_query, MYSQLI_ASSOC);
+            else error_log("Error en la consulta (dados_baja): " . mysqli_error($conexion));
+            $columnas_tabla_html = ["ID", "Tipo", "Marca", "Serie", "Empresa", "Últ. Responsable", "Fecha Baja", "Motivo/Obs.", "Acciones"];
             break;
 
         case 'movimientos':
-            $titulo_informe_actual = "Informe de Movimientos y Traslados Recientes";
+            // ... (código existente sin cambios)
+             $titulo_informe_actual = "Informe de Movimientos y Traslados Recientes";
             $tipo_traslado_const = defined('HISTORIAL_TIPO_TRASLADO') ? HISTORIAL_TIPO_TRASLADO : 'TRASLADO';
-            $query = "SELECT h.id_historial, h.fecha_evento, h.tipo_evento, h.descripcion_evento, h.usuario_responsable,
-                             a.id as id_activo_hist, a.tipo_activo, a.serie, a.marca AS marca_activo, a.Empresa AS empresa_activo
-                      FROM historial_activos h
-                      JOIN activos_tecnologicos a ON h.id_activo = a.id
-                      WHERE h.tipo_evento = '$tipo_traslado_const' 
-                         OR h.tipo_evento = '".(defined('HISTORIAL_TIPO_ASIGNACION_INICIAL') ? HISTORIAL_TIPO_ASIGNACION_INICIAL : 'ASIGNACIÓN INICIAL')."' 
-                         OR h.tipo_evento = '".(defined('HISTORIAL_TIPO_CREACION') ? HISTORIAL_TIPO_CREACION : 'CREACIÓN')."'
-                      ORDER BY h.fecha_evento DESC LIMIT 100";
+            $query = "SELECT h.id_historial, h.fecha_evento, h.tipo_evento, h.descripcion_evento, h.usuario_responsable, a.id as id_activo_hist, a.tipo_activo, a.serie, a.marca AS marca_activo, a.Empresa AS empresa_activo FROM historial_activos h JOIN activos_tecnologicos a ON h.id_activo = a.id WHERE h.tipo_evento = '$tipo_traslado_const' OR h.tipo_evento = '".(defined('HISTORIAL_TIPO_ASIGNACION_INICIAL') ? HISTORIAL_TIPO_ASIGNACION_INICIAL : 'ASIGNACIÓN INICIAL')."' OR h.tipo_evento = '".(defined('HISTORIAL_TIPO_CREACION') ? HISTORIAL_TIPO_CREACION : 'CREACIÓN')."' ORDER BY h.fecha_evento DESC LIMIT 100";
             $resultado_query = mysqli_query($conexion, $query);
-            if ($resultado_query) {
-                $datos_para_tabla = mysqli_fetch_all($resultado_query, MYSQLI_ASSOC);
-            } else {
-                error_log("Error en la consulta (movimientos): " . mysqli_error($conexion));
-            }
-            $columnas_tabla_html = [
-                'Fecha Evento', 'Tipo Evento', 'Activo (Tipo)', 'Serie Activo', 'Marca Activo', 'Empresa Activo', 'Descripción Evento', 'Usuario Sistema', 'Ver Activo'
-            ];
+            if ($resultado_query) $datos_para_tabla = mysqli_fetch_all($resultado_query, MYSQLI_ASSOC);
+            else error_log("Error en la consulta (movimientos): " . mysqli_error($conexion));
+            $columnas_tabla_html = ['Fecha', 'Tipo Evento', 'Activo', 'Serie', 'Marca', 'Empresa', 'Descripción', 'Usuario Sis.', 'Ver Activo'];
             break;
         
         default:
@@ -220,71 +214,21 @@ if ($tipo_informe_seleccionado !== 'seleccione') {
     </style>
 </head>
 <body>
-
-<div class="logo-container">
-  <a href="menu.php"><img src="imagenes/logo3.png" alt="Logo ARPESOD ASOCIADOS SAS"></a>
-</div>
-
-<nav class="navbar navbar-expand-lg navbar-custom">
-    <div class="container-fluid">
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon" style="background-image: url(&quot;data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255,255,255,0.8)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e&quot;);"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
-               <li class="nav-item"><a class="nav-link" href="menu.php">Inicio</a></li>
-               <li class="nav-item"><a class="nav-link" href="index.html">Registrar Activo</a></li>
-               <li class="nav-item"><a class="nav-link" href="editar.php">Editar/Trasladar</a></li>
-               <li class="nav-item"><a class="nav-link" href="buscar.php">Buscar Activos</a></li>
-               <li class="nav-item"><a class="nav-link" href="dashboard.php">Dashboard</a></li>
-               <li class="nav-item"><a class="nav-link <?= ($tipo_informe_seleccionado !== 'seleccione' || strpos($_SERVER['REQUEST_URI'], 'informes.php') !== false) ? 'active' : '' ?>" aria-current="page" href="informes.php">Informes</a></li>
-            </ul>
-            <form class="d-flex ms-auto" action="logout.php" method="post">
-                <button class="btn btn-outline-light" type="submit">Cerrar sesión</button>
-            </form>
-        </div>
-    </div>
-</nav>
+    <div class="logo-container"><a href="menu.php"><img src="imagenes/logo3.png" alt="Logo ARPESOD ASOCIADOS SAS"></a></div>
+    <nav class="navbar navbar-expand-lg navbar-custom"> <div class="container-fluid"> <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"><span class="navbar-toggler-icon" style="background-image: url(&quot;data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255,255,255,0.8)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e&quot;);"></span></button> <div class="collapse navbar-collapse" id="navbarNav"> <ul class="navbar-nav ms-auto"> <li class="nav-item"><a class="nav-link" href="menu.php">Inicio</a></li> <?php if (function_exists('tiene_permiso_para') && tiene_permiso_para('crear_activo')): ?><li class="nav-item"><a class="nav-link" href="index.php">Registrar Activo</a></li><?php else: /* Passthrough para el enlace original si no hay sistema de permisos o no tiene permiso */ ?><li class="nav-item"><a class="nav-link" href="index.html">Registrar Activo</a></li><?php endif; ?> <?php if (function_exists('tiene_permiso_para') && (tiene_permiso_para('editar_activo_detalles') || tiene_permiso_para('trasladar_activo'))): ?><li class="nav-item"><a class="nav-link" href="editar.php">Editar/Trasladar</a></li><?php else: ?><li class="nav-item"><a class="nav-link" href="editar.php">Editar/Trasladar</a></li><?php endif; ?> <li class="nav-item"><a class="nav-link" href="buscar.php">Buscar Activos</a></li> <li class="nav-item"><a class="nav-link" href="dashboard.php">Dashboard</a></li> <li class="nav-item"><a class="nav-link <?= ($tipo_informe_seleccionado !== 'seleccione' || strpos($_SERVER['REQUEST_URI'], 'informes.php') !== false) ? 'active' : '' ?>" aria-current="page" href="informes.php">Informes</a></li> </ul> <form class="d-flex ms-auto" action="logout.php" method="post"><button class="btn btn-outline-light" type="submit">Cerrar sesión</button></form> </div> </div></nav>
 
 <div class="container-main container mt-4">
     <h3 class="page-title text-center mb-4"><?= htmlspecialchars($titulo_pagina_base) ?></h3>
 
     <div class="row mb-5 justify-content-center">
-        <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-            <a href="informes.php?tipo_informe=general" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'general') ? 'border-primary shadow' : 'text-dark' ?>">
-                <div class="card-body"> <i class="bi bi-list-ul text-primary"></i> <h5>General por Responsable</h5></div>
-            </a>
-        </div>
-        <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-            <a href="informes.php?tipo_informe=por_tipo" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'por_tipo') ? 'border-secondary shadow' : 'text-dark' ?>">
-                <div class="card-body"> <i class="bi bi-tags-fill text-secondary"></i> <h5>Activos por Tipo</h5></div>
-            </a>
-        </div>
-        <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-            <a href="informes.php?tipo_informe=por_estado" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'por_estado') ? 'border-success shadow' : 'text-dark' ?>">
-                <div class="card-body"> <i class="bi bi-check-circle-fill text-success"></i> <h5>Activos por Estado</h5></div>
-            </a>
-        </div>
-        <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-            <a href="informes.php?tipo_informe=por_regional" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'por_regional') ? 'border-info shadow' : 'text-dark' ?>">
-                <div class="card-body"> <i class="bi bi-geo-alt-fill text-info"></i> <h5>Activos por Regional</h5></div>
-            </a>
-        </div>
-        <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-            <a href="informes.php?tipo_informe=por_empresa" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'por_empresa') ? 'border-dark shadow' : 'text-dark' ?>">
-                <div class="card-body"> <i class="bi bi-building text-dark"></i> <h5>Activos por Empresa</h5></div>
-            </a>
-        </div>
-        <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-            <a href="informes.php?tipo_informe=dados_baja" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'dados_baja') ? 'border-danger shadow' : 'text-dark' ?>">
-                <div class="card-body"> <i class="bi bi-trash3-fill text-danger"></i> <h5>Activos Dados de Baja</h5></div>
-            </a>
-        </div>
-        <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-            <a href="informes.php?tipo_informe=movimientos" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'movimientos') ? 'border-warning shadow' : 'text-dark' ?>">
-                <div class="card-body"> <i class="bi bi-truck text-warning"></i> <h5>Movimientos Recientes</h5></div>
-            </a>
-        </div>
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-3"> <a href="informes.php?tipo_informe=general" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'general') ? 'border-primary shadow' : 'text-dark' ?>"> <div class="card-body"> <i class="bi bi-list-ul text-primary"></i> <h5>General por Responsable</h5></div></a></div>
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-3"> <a href="informes.php?tipo_informe=por_tipo" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'por_tipo') ? 'border-secondary shadow' : 'text-dark' ?>"> <div class="card-body"> <i class="bi bi-tags-fill text-secondary"></i> <h5>Activos por Tipo</h5></div></a></div>
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-3"> <a href="informes.php?tipo_informe=por_estado" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'por_estado') ? 'border-success shadow' : 'text-dark' ?>"> <div class="card-body"> <i class="bi bi-check-circle-fill text-success"></i> <h5>Activos por Estado</h5></div></a></div>
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-3"> <a href="informes.php?tipo_informe=por_regional" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'por_regional') ? 'border-info shadow' : 'text-dark' ?>"> <div class="card-body"> <i class="bi bi-geo-alt-fill text-info"></i> <h5>Activos por Regional</h5></div></a></div>
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-3"> <a href="informes.php?tipo_informe=por_empresa" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'por_empresa') ? 'border-dark shadow' : 'text-dark' ?>"> <div class="card-body"> <i class="bi bi-building text-dark"></i> <h5>Activos por Empresa</h5></div></a></div>
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-3"> <a href="informes.php?tipo_informe=calificacion_por_tipo" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'calificacion_por_tipo') ? 'border-warning shadow' : 'text-dark' ?>"> <div class="card-body"> <i class="bi bi-star-fill text-warning"></i> <h5>Calificaciones por Activo</h5></div></a></div> 
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-3"> <a href="informes.php?tipo_informe=dados_baja" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'dados_baja') ? 'border-danger shadow' : 'text-dark' ?>"> <div class="card-body"> <i class="bi bi-trash3-fill text-danger"></i> <h5>Activos Dados de Baja</h5></div></a></div>
+        <div class="col-lg-3 col-md-4 col-sm-6 mb-3"> <a href="informes.php?tipo_informe=movimientos" class="card informe-selector-card text-decoration-none <?= ($tipo_informe_seleccionado == 'movimientos') ? 'border-secondary shadow' : 'text-dark' ?>"> <div class="card-body"> <i class="bi bi-truck text-secondary"></i> <h5>Movimientos Recientes</h5></div></a></div>
     </div>
     
     <?php if ($tipo_informe_seleccionado !== 'seleccione' && !empty($titulo_informe_actual)) : ?>
@@ -300,175 +244,75 @@ if ($tipo_informe_seleccionado !== 'seleccione') {
 
         <?php if (!empty($datos_para_tabla)) : ?>
             <?php
-            // Lógica de visualización de tablas
             if ($tipo_informe_seleccionado == 'general') {
-                // ... (código informe general sin cambios)
-                $current_group_key_general = null; $asset_item_number_general = 0;
+                // ... (código informe general)
+                 $current_group_key_general = null; $asset_item_number_general = 0; $current_empresa_general = null;
                 foreach ($datos_para_tabla as $activo_gen) :
-                    if ($activo_gen['cedula_responsable_directo'] !== $current_group_key_general) :
+                    $responsable_key = ($activo_gen['Empresa'] ?? 'SinEmpresa') . '-' . $activo_gen['cedula_responsable_directo'];
+                    if ($responsable_key !== $current_group_key_general) :
                         if ($current_group_key_general !== null) echo '</tbody></table></div></div>';
-                        $current_group_key_general = $activo_gen['cedula_responsable_directo']; $asset_item_number_general = 1;
-            ?>
-                        <div class="user-asset-group">
-                            <div class="user-info-header">
-                                <h4><?= htmlspecialchars($activo_gen['nombre_responsable_directo']) ?></h4>
-                                <p><strong>C.C:</strong> <?= htmlspecialchars($activo_gen['cedula_responsable_directo']) ?> | <strong>Cargo:</strong> <?= htmlspecialchars($activo_gen['cargo_responsable_directo']) ?> | <strong>Empresa:</strong> <?= htmlspecialchars($activo_gen['Empresa'] ?? ($activo_gen['empresa'] ?? 'N/A')) ?></p>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table-minimalist">
-                                    <thead><tr><th>#</th><th>Tipo</th><th>Marca</th><th>Serie</th><th>Estado</th><th>Valor</th><th>Regional</th><th>Fecha Reg.</th></tr></thead>
-                                    <tbody>
-            <?php
-                    endif;
-            ?>
-                                    <tr>
-                                        <td><span class="asset-item-number"><?= $asset_item_number_general++ ?>.</span></td>
-                                        <td><?= htmlspecialchars($activo_gen['tipo_activo']) ?></td>
-                                        <td><?= htmlspecialchars($activo_gen['marca']) ?></td>
-                                        <td><?= htmlspecialchars($activo_gen['serie']) ?></td>
-                                        <td><span class="<?= getEstadoBadgeClass($activo_gen['estado']) ?>"><?= htmlspecialchars($activo_gen['estado']) ?></span></td>
-                                        <td><?= htmlspecialchars(number_format(floatval($activo_gen['valor_aproximado']), 0, ',', '.')) ?></td>
-                                        <td><?= htmlspecialchars($activo_gen['regional']) ?></td>
-                                        <td><?= htmlspecialchars(date("d/m/Y", strtotime($activo_gen['fecha_registro']))) ?></td>
-                                    </tr>
-            <?php
-                endforeach;
-                if ($current_group_key_general !== null) echo '</tbody></table></div></div>';
+                        $current_group_key_general = $responsable_key; $current_empresa_general = $activo_gen['Empresa'] ?? ($activo_gen['empresa'] ?? 'N/A'); $asset_item_number_general = 1;
+            ?> <div class="user-asset-group"> <div class="user-info-header"> <h4><?= htmlspecialchars($activo_gen['nombre_responsable_directo']) ?> <small class="text-muted">(Empresa: <?= htmlspecialchars($current_empresa_general) ?>)</small></h4> <p><strong>C.C:</strong> <?= htmlspecialchars($activo_gen['cedula_responsable_directo']) ?> | <strong>Cargo:</strong> <?= htmlspecialchars($activo_gen['cargo_responsable_directo']) ?></p> </div> <div class="table-responsive"> <table class="table-minimalist"> <thead><tr><th>#</th><th>Tipo</th><th>Marca</th><th>Serie</th><th>Estado</th><th>Valor</th><th>Regional</th><th>Fecha Reg.</th></tr></thead> <tbody> <?php endif; ?> <tr> <td><span class="asset-item-number"><?= $asset_item_number_general++ ?>.</span></td> <td><?= htmlspecialchars($activo_gen['tipo_activo']) ?></td> <td><?= htmlspecialchars($activo_gen['marca']) ?></td> <td><?= htmlspecialchars($activo_gen['serie']) ?></td> <td><span class="<?= getEstadoBadgeClass($activo_gen['estado']) ?>"><?= htmlspecialchars($activo_gen['estado']) ?></span></td> <td>$<?= htmlspecialchars(number_format(floatval($activo_gen['valor_aproximado']), 0, ',', '.')) ?></td> <td><?= htmlspecialchars($activo_gen['regional']) ?></td> <td><?= htmlspecialchars(date("d/m/Y", strtotime($activo_gen['fecha_registro']))) ?></td> </tr> <?php endforeach; if ($current_group_key_general !== null) echo '</tbody></table></div></div>';
 
-            // <<< INICIO VISUALIZACIÓN INFORME POR EMPRESA (y otros informes agrupados) >>>
             } elseif (in_array($tipo_informe_seleccionado, ['por_tipo', 'por_estado', 'por_regional', 'por_empresa'])) {
-                $current_group_key_field = null; $asset_item_number_field = 0;
-                $group_by_field = '';
+                // ... (código para estos informes agrupados sin cambios)
+                $current_group_key_field = null; $asset_item_number_field = 0; $group_by_field = '';
                 switch ($tipo_informe_seleccionado) {
                     case 'por_tipo': $group_by_field = 'tipo_activo'; break;
                     case 'por_estado': $group_by_field = 'estado'; break;
                     case 'por_regional': $group_by_field = 'regional'; break;
-                    case 'por_empresa': $group_by_field = 'Empresa'; break; // Asume que la clave del array es 'Empresa'
+                    case 'por_empresa': $group_by_field = 'Empresa'; break; 
                 }
                 $group_by_field_label = ucfirst(str_replace('_', ' ', $group_by_field));
-                // Para 'Empresa', el label podría ser simplemente 'Empresa'
-                if ($tipo_informe_seleccionado == 'por_empresa') {
-                    $group_by_field_label = 'Empresa';
-                }
-
+                if ($tipo_informe_seleccionado == 'por_empresa') { $group_by_field_label = 'Empresa';}
 
                 foreach ($datos_para_tabla as $activo_field) :
-                    // Asegúrate de que la clave exista, usa la clave correcta ('Empresa' o 'empresa')
                     $current_group_value = $activo_field[$group_by_field] ?? 'Sin Asignar'; 
                     if ($current_group_value !== $current_group_key_field) :
                         if ($current_group_key_field !== null) echo '</tbody></table></div></div>';
-                        $current_group_key_field = $current_group_value; 
-                        $asset_item_number_field = 1;
-            ?>
-                        <div class="report-group-container">
-                            <div class="group-info-header"><h4><?= htmlspecialchars($group_by_field_label) ?>: <?= htmlspecialchars($current_group_key_field ?: 'N/A') ?></h4></div>
-                            <div class="table-responsive">
-                                <table class="table-minimalist">
-                                    <?php if ($tipo_informe_seleccionado == 'por_empresa'): ?>
-                                    <thead><tr><th>#</th><th>Tipo Activo</th><th>Marca</th><th>Serie</th><th>Responsable</th><th>C.C.</th><th>Estado</th><th>Valor</th><th>Regional</th></tr></thead>
-                                    <?php else: ?>
-                                    <thead><tr><th>#</th><th>Serie</th><th>Marca</th><th>Responsable</th><th>C.C.</th><th><?= ($group_by_field != 'estado') ? 'Estado' : 'Tipo Activo' ?></th><th>Valor</th><th><?= ($group_by_field != 'regional') ? 'Regional' : (($group_by_field != 'tipo_activo') ? 'Tipo Activo': 'Empresa') ?></th></tr></thead>
-                                    <?php endif; ?>
-                                    <tbody>
-            <?php
-                    endif;
-            ?>
-                                    <tr>
-                                        <td><span class="asset-item-number"><?= $asset_item_number_field++ ?>.</span></td>
-                                        <?php if ($tipo_informe_seleccionado == 'por_empresa'): ?>
-                                            <td><?= htmlspecialchars($activo_field['tipo_activo']) ?></td>
-                                            <td><?= htmlspecialchars($activo_field['marca']) ?></td>
-                                            <td><?= htmlspecialchars($activo_field['serie']) ?></td>
-                                            <td><?= htmlspecialchars($activo_field['nombre'] ?? 'N/A') ?></td>
-                                            <td><?= htmlspecialchars($activo_field['cedula'] ?? 'N/A') ?></td>
-                                            <td><span class="<?= getEstadoBadgeClass($activo_field['estado']) ?>"><?= htmlspecialchars($activo_field['estado']) ?></span></td>
-                                            <td><?= htmlspecialchars(number_format(floatval($activo_field['valor_aproximado']), 0, ',', '.')) ?></td>
-                                            <td><?= htmlspecialchars($activo_field['regional']) ?></td>
-                                        <?php else: ?>
-                                            <td><?= htmlspecialchars($activo_field['serie']) ?></td>
-                                            <td><?= htmlspecialchars($activo_field['marca']) ?></td>
-                                            <td><?= htmlspecialchars($activo_field['nombre'] ?? 'N/A') ?></td>
-                                            <td><?= htmlspecialchars($activo_field['cedula'] ?? 'N/A') ?></td>
-                                            <td>
-                                                <?php if ($group_by_field != 'estado'): ?>
-                                                    <span class="<?= getEstadoBadgeClass($activo_field['estado']) ?>"><?= htmlspecialchars($activo_field['estado']) ?></span>
-                                                <?php else: ?>
-                                                    <?= htmlspecialchars($activo_field['tipo_activo']) ?>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><?= htmlspecialchars(number_format(floatval($activo_field['valor_aproximado']), 0, ',', '.')) ?></td>
-                                            <td><?= htmlspecialchars( ($group_by_field != 'regional') ? $activo_field['regional'] : ( ($group_by_field != 'tipo_activo') ? $activo_field['tipo_activo'] : ($activo_field['Empresa'] ?? $activo_field['empresa'] ?? 'N/A') ) ) ?></td>
-                                        <?php endif; ?>
-                                    </tr>
-            <?php
-                endforeach;
-                if ($current_group_key_field !== null) echo '</tbody></table></div></div>';
-            // <<< FIN VISUALIZACIÓN INFORME POR EMPRESA >>>
-
-            } elseif ($tipo_informe_seleccionado == 'dados_baja') {
-            ?>
-                <div class="report-group-container"> <div class="table-responsive">
-                    <table class="table-minimalist">
-                        <thead><tr>
-                            <?php foreach ($columnas_tabla_html as $header): ?>
-                                <th><?= htmlspecialchars($header) ?></th>
-                            <?php endforeach; ?>
-                        </tr></thead>
-                        <tbody>
-                        <?php foreach ($datos_para_tabla as $activo_baja) : ?>
-                            <tr>
-                                <td><?= htmlspecialchars($activo_baja['id']) ?></td>
-                                <td><?= htmlspecialchars($activo_baja['tipo_activo']) ?></td>
-                                <td><?= htmlspecialchars($activo_baja['marca']) ?></td>
-                                <td><?= htmlspecialchars($activo_baja['serie']) ?></td>
-                                <td><?= htmlspecialchars($activo_baja['Empresa'] ?? ($activo_baja['empresa'] ?? 'N/A')) ?></td>
-                                <td><?= htmlspecialchars($activo_baja['nombre_ultimo_responsable'] ?? 'N/A') ?> (<?= htmlspecialchars($activo_baja['cedula_ultimo_responsable'] ?? 'N/A') ?>)</td>
-                                <td><?= htmlspecialchars(!empty($activo_baja['fecha_efectiva_baja']) ? date("d/m/Y H:i:s", strtotime($activo_baja['fecha_efectiva_baja'])) : 'N/A') ?></td>
-                                <td style="max-width: 300px; white-space: pre-wrap; word-wrap: break-word;"><?= nl2br(htmlspecialchars($activo_baja['motivo_observaciones_baja'] ?? $activo_baja['detalles_activo'] ?? 'Ver historial')) ?></td>
-                                <td>
-                                    <a href="historial.php?id_activo=<?= htmlspecialchars($activo_baja['id']) ?>" class="btn btn-sm btn-outline-info" title="Ver Historial Completo" target="_blank">
-                                        <i class="bi bi-list-task"></i> Hist.
-                                    </a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div></div>
-            <?php
-            } elseif ($tipo_informe_seleccionado == 'movimientos') {
+                        $current_group_key_field = $current_group_value; $asset_item_number_field = 1;
+            ?> <div class="report-group-container"> <div class="group-info-header"><h4><?= htmlspecialchars($group_by_field_label) ?>: <?= htmlspecialchars($current_group_key_field ?: 'N/A') ?></h4></div> <div class="table-responsive"> <table class="table-minimalist"> <?php if ($tipo_informe_seleccionado == 'por_empresa'): ?> <thead><tr><th>#</th><th>Tipo Activo</th><th>Marca</th><th>Serie</th><th>Responsable</th><th>C.C.</th><th>Estado</th><th>Valor</th><th>Regional</th></tr></thead> <?php else: ?> <thead><tr><th>#</th><th>Serie</th><th>Marca</th><th>Responsable</th><th>C.C.</th><th><?= ($group_by_field != 'estado') ? 'Estado' : 'Tipo Activo' ?></th><th>Valor</th><th><?= ($group_by_field != 'regional') ? 'Regional' : (($group_by_field != 'tipo_activo') ? 'Tipo Activo': 'Empresa') ?></th></tr></thead> <?php endif; ?> <tbody> <?php endif; ?> <tr> <td><span class="asset-item-number"><?= $asset_item_number_field++ ?>.</span></td> <?php if ($tipo_informe_seleccionado == 'por_empresa'): ?> <td><?= htmlspecialchars($activo_field['tipo_activo']) ?></td> <td><?= htmlspecialchars($activo_field['marca']) ?></td> <td><?= htmlspecialchars($activo_field['serie']) ?></td> <td><?= htmlspecialchars($activo_field['nombre'] ?? 'N/A') ?></td> <td><?= htmlspecialchars($activo_field['cedula'] ?? 'N/A') ?></td> <td><span class="<?= getEstadoBadgeClass($activo_field['estado']) ?>"><?= htmlspecialchars($activo_field['estado']) ?></span></td> <td>$<?= htmlspecialchars(number_format(floatval($activo_field['valor_aproximado']), 0, ',', '.')) ?></td> <td><?= htmlspecialchars($activo_field['regional']) ?></td> <?php else: ?> <td><?= htmlspecialchars($activo_field['serie']) ?></td> <td><?= htmlspecialchars($activo_field['marca']) ?></td> <td><?= htmlspecialchars($activo_field['nombre'] ?? 'N/A') ?></td> <td><?= htmlspecialchars($activo_field['cedula'] ?? 'N/A') ?></td> <td> <?php if ($group_by_field != 'estado'): ?><span class="<?= getEstadoBadgeClass($activo_field['estado']) ?>"><?= htmlspecialchars($activo_field['estado']) ?></span><?php else: ?><?= htmlspecialchars($activo_field['tipo_activo']) ?><?php endif; ?> </td> <td>$<?= htmlspecialchars(number_format(floatval($activo_field['valor_aproximado']), 0, ',', '.')) ?></td> <td><?= htmlspecialchars( ($group_by_field != 'regional') ? $activo_field['regional'] : ( ($group_by_field != 'tipo_activo') ? $activo_field['tipo_activo'] : ($activo_field['Empresa'] ?? $activo_field['empresa'] ?? 'N/A') ) ) ?></td> <?php endif; ?> </tr> <?php endforeach; if ($current_group_key_field !== null) echo '</tbody></table></div></div>';
+            
+            // <<< INICIO VISUALIZACIÓN INFORME CALIFICACIONES INDIVIDUALES >>>
+            } elseif ($tipo_informe_seleccionado == 'calificacion_por_tipo') { // El ID del informe sigue siendo 'calificacion_por_tipo'
             ?>
                 <div class="report-group-container">
                     <div class="table-responsive">
                         <table class="table-minimalist">
-                            <thead><tr>
-                                <?php foreach ($columnas_tabla_html as $header): // $columnas_tabla_html debe estar definido para este informe ?>
-                                    <th><?= htmlspecialchars($header) ?></th>
-                                <?php endforeach; ?>
-                            </tr></thead>
-                            <tbody>
-                            <?php foreach ($datos_para_tabla as $evento) : ?>
+                            <thead>
                                 <tr>
-                                    <td><?= htmlspecialchars(!empty($evento['fecha_evento']) ? date("d/m/Y H:i:s", strtotime($evento['fecha_evento'])) : 'N/A') ?></td>
-                                    <td><span class="badge bg-warning text-dark"><?= htmlspecialchars($evento['tipo_evento']) ?></span></td>
-                                    <td><?= htmlspecialchars($evento['tipo_activo'] ?? 'N/A') ?></td>
-                                    <td><?= htmlspecialchars($evento['serie'] ?? 'N/A') ?></td>
-                                    <td><?= htmlspecialchars($evento['marca_activo'] ?? 'N/A') ?></td>
-                                    <td><?= htmlspecialchars($evento['empresa_activo'] ?? 'N/A') ?></td>
-                                    <td style="max-width: 350px; white-space: pre-wrap; word-wrap: break-word;"><?= nl2br(htmlspecialchars($evento['descripcion_evento'])) ?></td>
-                                    <td><?= htmlspecialchars($evento['usuario_responsable'] ?? 'N/A') ?></td>
-                                    <td>
-                                        <a href="historial.php?id_activo=<?= htmlspecialchars($evento['id_activo_hist']) ?>" class="btn btn-sm btn-outline-info" title="Ver Historial Completo del Activo" target="_blank">
-                                            <i class="bi bi-list-task"></i> Activo
-                                        </a>
-                                    </td>
+                                    <?php foreach ($columnas_tabla_html as $header): ?>
+                                        <th><?= htmlspecialchars($header) ?></th>
+                                    <?php endforeach; ?>
                                 </tr>
-                            <?php endforeach; ?>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($datos_para_tabla as $activo_calificado) : ?>
+                                    <tr>
+                                        <td><?= htmlspecialchars($activo_calificado['tipo_activo']) ?></td>
+                                        <td><?= htmlspecialchars($activo_calificado['marca']) ?></td>
+                                        <td><?= htmlspecialchars($activo_calificado['serie']) ?></td>
+                                        <td><?= htmlspecialchars($activo_calificado['nombre_responsable'] ?? 'N/A') ?> (<?= htmlspecialchars($activo_calificado['cedula_responsable'] ?? 'N/A')?>)</td>
+                                        <td><?= htmlspecialchars($activo_calificado['Empresa'] ?? ($activo_calificado['empresa'] ?? 'N/A')) ?></td>
+                                        <td><?= htmlspecialchars($activo_calificado['regional']) ?></td>
+                                        <td><span class="<?= getEstadoBadgeClass($activo_calificado['estado']) ?>"><?= htmlspecialchars($activo_calificado['estado']) ?></span></td>
+                                        <td><?= htmlspecialchars(date("d/m/Y", strtotime($activo_calificado['fecha_registro']))) ?></td>
+                                        <td><?= displayStars(floatval($activo_calificado['satisfaccion_rating'])) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
                 </div>
             <?php
+            // <<< FIN VISUALIZACIÓN INFORME CALIFICACIONES INDIVIDUALES >>>
+
+            } elseif ($tipo_informe_seleccionado == 'dados_baja') {
+                // ... (código informe dados_baja)
+                 ?> <div class="report-group-container"> <div class="table-responsive"> <table class="table-minimalist"> <thead><tr> <?php foreach ($columnas_tabla_html as $header): ?><th><?= htmlspecialchars($header) ?></th><?php endforeach; ?> </tr></thead> <tbody> <?php foreach ($datos_para_tabla as $activo_baja) : ?> <tr> <td><?= htmlspecialchars($activo_baja['id']) ?></td> <td><?= htmlspecialchars($activo_baja['tipo_activo']) ?></td> <td><?= htmlspecialchars($activo_baja['marca']) ?></td> <td><?= htmlspecialchars($activo_baja['serie']) ?></td> <td><?= htmlspecialchars($activo_baja['Empresa'] ?? ($activo_baja['empresa'] ?? 'N/A')) ?></td> <td><?= htmlspecialchars($activo_baja['nombre_ultimo_responsable'] ?? 'N/A') ?> (<?= htmlspecialchars($activo_baja['cedula_ultimo_responsable'] ?? 'N/A') ?>)</td> <td><?= htmlspecialchars(!empty($activo_baja['fecha_efectiva_baja']) ? date("d/m/Y H:i:s", strtotime($activo_baja['fecha_efectiva_baja'])) : 'N/A') ?></td> <td style="max-width: 300px; white-space: pre-wrap; word-wrap: break-word;"><?= nl2br(htmlspecialchars($activo_baja['motivo_observaciones_baja'] ?? $activo_baja['detalles_activo'] ?? 'Ver historial')) ?></td> <td><a href="historial.php?id_activo=<?= htmlspecialchars($activo_baja['id']) ?>" class="btn btn-sm btn-outline-info" title="Ver Historial Completo" target="_blank"><i class="bi bi-list-task"></i> Hist.</a></td> </tr> <?php endforeach; ?> </tbody> </table> </div></div> <?php
+            } elseif ($tipo_informe_seleccionado == 'movimientos') {
+                // ... (código informe movimientos)
+                 ?> <div class="report-group-container"> <div class="table-responsive"> <table class="table-minimalist"> <thead><tr> <?php foreach ($columnas_tabla_html as $header): ?><th><?= htmlspecialchars($header) ?></th><?php endforeach; ?> </tr></thead> <tbody> <?php foreach ($datos_para_tabla as $evento) : ?> <tr> <td><?= htmlspecialchars(!empty($evento['fecha_evento']) ? date("d/m/Y H:i:s", strtotime($evento['fecha_evento'])) : 'N/A') ?></td> <td><span class="badge bg-warning text-dark"><?= htmlspecialchars($evento['tipo_evento']) ?></span></td> <td><?= htmlspecialchars($evento['tipo_activo'] ?? 'N/A') ?></td> <td><?= htmlspecialchars($evento['serie'] ?? 'N/A') ?></td> <td><?= htmlspecialchars($evento['marca_activo'] ?? 'N/A') ?></td> <td><?= htmlspecialchars($evento['empresa_activo'] ?? 'N/A') ?></td> <td style="max-width: 350px; white-space: pre-wrap; word-wrap: break-word;"><?= nl2br(htmlspecialchars($evento['descripcion_evento'])) ?></td> <td><?= htmlspecialchars($evento['usuario_responsable'] ?? 'N/A') ?></td> <td><a href="historial.php?id_activo=<?= htmlspecialchars($evento['id_activo_hist']) ?>" class="btn btn-sm btn-outline-info" title="Ver Historial Completo del Activo" target="_blank"><i class="bi bi-list-task"></i> Activo</a></td> </tr> <?php endforeach; ?> </tbody> </table> </div> </div> <?php
             } 
             ?>
         <?php else: ?>

@@ -65,7 +65,7 @@ uasort($tipo_activo_summary, function ($a, $b) {
 $labels_tipo_activo_new = [];
 $data_tipo_activo_total = [];
 $detailed_status_data_for_tooltip = [];
-$limit_tipos = 7;
+$limit_tipos = 15;
 $count_tipos = 0;
 foreach ($tipo_activo_summary as $tipo => $summary) {
     if ($count_tipos >= $limit_tipos) break;
