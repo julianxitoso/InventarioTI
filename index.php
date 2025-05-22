@@ -1,7 +1,7 @@
 <?php
 // session_start(); // auth_check.php ya lo incluye y gestiona
 require_once 'backend/auth_check.php';
-restringir_acceso_pagina(['admin', 'tecnico']);
+restringir_acceso_pagina(['admin', 'tecnico', 'registrador']);
 
 require_once 'backend/db.php';
 if (isset($conn) && !isset($conexion)) { $conexion = $conn; }

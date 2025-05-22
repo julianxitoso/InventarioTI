@@ -2,7 +2,7 @@
 // session_start(); // auth_check.php ya lo incluye y gestiona
 require_once 'backend/auth_check.php';
 // Todos los roles autenticados (admin, tecnico, auditor) pueden acceder a buscar
-restringir_acceso_pagina(['admin', 'tecnico', 'auditor']);
+restringir_acceso_pagina(['admin', 'tecnico', 'auditor', 'registrador']);
 
 require_once 'backend/db.php';
 if (isset($conn) && !isset($conexion)) { $conexion = $conn; }
@@ -317,7 +317,7 @@ function getEstadoBadgeClass($estado) {
                                     <td><?= htmlspecialchars($activo['serie']) ?></td>
                                     <td><span class="<?= getEstadoBadgeClass($activo['estado']) ?>"><?= htmlspecialchars($activo['estado']) ?></span></td>
                                     <td><?= htmlspecialchars($activo['regional']) ?></td>
-                                    <td><?= htmlspecialchars($activo['Empresa'] ?? 'N/A') ?></td> 
+                                    <td><?= htmlspecialchars($activo['mpresa'] ?? 'N/A') ?></td> 
                                     <td>$<?= htmlspecialchars(number_format(floatval($activo['valor_aproximado']), 0, ',', '.')) ?></td>
                                     <td><?= htmlspecialchars(date("d/m/Y", strtotime($activo['fecha_registro']))) ?></td>
                                     <td>
