@@ -8,29 +8,29 @@ require_once 'backend/db.php';
 if (isset($conn) && !isset($conexion)) { $conexion = $conn; }
 if (!isset($conexion) || !$conexion || (method_exists($conexion, 'connect_error') && $conexion->connect_error) ) {
     error_log("Error de conexión BD en buscar.php: " . ($conexion->connect_error ?? 'Desconocido'));
-    // En un entorno de producción, no mostrar errores detallados de BD al usuario.
     die("Error de conexión a la base de datos. Por favor, intente más tarde o contacte al administrador.");
 }
 $conexion->set_charset("utf8mb4");
 
 $cedula_buscada = trim($_GET['cedula'] ?? '');
 $regional_buscada = trim($_GET['regional'] ?? '');
+$empresa_buscada = trim($_GET['empresa'] ?? '');
 $incluir_dados_baja = isset($_GET['incluir_bajas']) && $_GET['incluir_bajas'] === '1';
-$buscar_todos_flag = isset($_GET['buscar_todos']) && $_GET['buscar_todos'] === '1'; // Para el botón "Mostrar Todos"
+$buscar_todos_flag = isset($_GET['buscar_todos']) && $_GET['buscar_todos'] === '1';
 
 $activos_encontrados = [];
-$regionales = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional', 'Finansueños']; // Mantener tu lista
+// Se quita 'Finansueños' de las regionales, ya que ahora es una entidad de Empresa.
+$regionales = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional']; 
+$empresas_disponibles = ['Arpesod', 'Finansueños'];
+
 $criterio_busqueda_activo = false;
 
-// Obtener datos del usuario de la sesión para la navbar u otros usos
 $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
 $rol_usuario_sesion = obtener_rol_usuario();
 
-
-// Ejecutar búsqueda si hay criterios o se pulsa "Buscar Todos"
-if (!empty($cedula_buscada) || !empty($regional_buscada) || $buscar_todos_flag) {
+if (!empty($cedula_buscada) || !empty($regional_buscada) || !empty($empresa_buscada) || $buscar_todos_flag) {
     $criterio_busqueda_activo = true;
-    $sql = "SELECT * FROM activos_tecnologicos WHERE 1=1"; // El WHERE 1=1 facilita añadir condiciones AND
+    $sql = "SELECT * FROM activos_tecnologicos WHERE 1=1";
     $params = [];
     $types = '';
 
@@ -39,7 +39,7 @@ if (!empty($cedula_buscada) || !empty($regional_buscada) || $buscar_todos_flag) 
     }
 
     if (!empty($cedula_buscada)) {
-        $sql .= " AND cedula = ?"; // Búsqueda exacta por cédula
+        $sql .= " AND cedula = ?";
         $params[] = $cedula_buscada;
         $types .= 's';
     }
@@ -48,20 +48,35 @@ if (!empty($cedula_buscada) || !empty($regional_buscada) || $buscar_todos_flag) 
         $params[] = $regional_buscada;
         $types .= 's';
     }
-    $sql .= " ORDER BY nombre ASC, cedula ASC, id ASC"; // Ordenar por nombre del responsable para agrupación
+    if (!empty($empresa_buscada)) {
+        // Cambiado de 'empresa_origen' a 'empresa'
+        $sql .= " AND empresa = ?"; 
+        $params[] = $empresa_buscada;
+        $types .= 's';
+    }
+    $sql .= " ORDER BY nombre ASC, cedula ASC, id ASC";
+
+    // Para depuración: Descomenta las siguientes líneas para ver la consulta y los parámetros
+    // var_dump($sql);
+    // var_dump($params);
+    // var_dump($types);
 
     $stmt = $conexion->prepare($sql);
-    $error_consulta = ""; // Para almacenar mensajes de error de la consulta
+    $error_consulta = "";
     if ($stmt) {
         if (!empty($params)) {
             $stmt->bind_param($types, ...$params);
         }
         if (!$stmt->execute()) {
             $error_consulta = "Error al ejecutar la búsqueda. Intente más tarde.";
-            error_log("Error al ejecutar consulta en buscar.php: " . $stmt->error . " SQL: " . $sql);
+            error_log("Error al ejecutar consulta en buscar.php: " . $stmt->error . " SQL: " . $sql . " Params: " . json_encode($params));
         } else {
             $resultado = $stmt->get_result();
             $activos_encontrados = $resultado->fetch_all(MYSQLI_ASSOC);
+            // Para depuración: Descomenta la siguiente línea para ver si se obtienen filas
+            // if (empty($activos_encontrados) && $criterio_busqueda_activo) {
+            //     error_log("La consulta se ejecutó pero no devolvió filas. SQL: " . $sql . " Params: " . json_encode($params));
+            // }
         }
         $stmt->close();
     } else {
@@ -69,7 +84,6 @@ if (!empty($cedula_buscada) || !empty($regional_buscada) || $buscar_todos_flag) 
         error_log("Error al preparar consulta en buscar.php: " . $conexion->error . " SQL: " . $sql);
     }
 }
-// No se cierra $conexion aquí, se hará al final del script si es la última operación.
 
 function getEstadoBadgeClass($estado) {
     $estadoLower = strtolower(trim($estado));
@@ -100,7 +114,6 @@ function getEstadoBadgeClass($estado) {
         .navbar-custom .nav-link:hover, .navbar-custom .nav-link.active { background-color: #8b0000; color: white; }
         .btn-custom-search { background-color: #191970; color: white; }
         .btn-custom-search:hover { background-color: #8b0000; color: white; }
-
         .table-minimalist {
             border-collapse: collapse; width: 100%; margin-top: 15px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-radius: 6px; overflow: hidden; font-size: 0.85rem;
@@ -117,7 +130,6 @@ function getEstadoBadgeClass($estado) {
         .badge { padding: 0.4em 0.6em; font-size: 0.85em; font-weight: 600; }
         .btn-export { background-color: #198754; border-color: #198754; color: white; font-weight: 500; }
         .btn-export:hover { background-color: #157347; border-color: #146c43; }
-
         .user-asset-group {
             background-color: #fff; padding: 20px; margin-bottom: 25px;
             border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
@@ -126,10 +138,10 @@ function getEstadoBadgeClass($estado) {
             border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;
             display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;
         }
-        .user-info-header .info-block { flex-grow: 1; min-width: 250px; } /* Para que el bloque de info no se achique demasiado */
+        .user-info-header .info-block { flex-grow: 1; min-width: 250px; }
         .user-info-header .info-block h4 { color: #37517e; font-weight: 600; margin-bottom: 2px; font-size: 1.1rem;}
         .user-info-header .info-block p { margin-bottom: 2px; font-size: 0.9rem; color: #555; }
-        .user-info-header .actions-block { margin-top: 10px; md-margin-top: 0;} /* Espacio si se envuelve */
+        .user-info-header .actions-block { margin-top: 10px; md-margin-top: 0;}
         .asset-item-number { font-weight: bold; min-width: 25px; display: inline-block; text-align: right; margin-right: 5px;}
         .form-label { font-weight: 500; color: #495057; }
         .card.search-card { box-shadow: 0 2px 8px rgba(0,0,0,0.06); border:none; }
@@ -165,8 +177,6 @@ function getEstadoBadgeClass($estado) {
                <?php if (tiene_permiso_para('ver_dashboard')): ?>
                     <li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'dashboard.php') ? 'active' : '' ?>" href="dashboard.php">Dashboard</a></li>
                <?php endif; ?>
-               <?php if (es_admin()): ?>
-                    <?php endif; ?>
             </ul>
             <form class="d-flex ms-auto" action="logout.php" method="post">
                 <button class="btn btn-outline-light" type="submit">Cerrar sesión</button>
@@ -179,11 +189,11 @@ function getEstadoBadgeClass($estado) {
     <div class="card search-card p-4">
         <h3 class="page-title mb-4 text-center">Buscar Activos Tecnológicos</h3>
         <form class="row g-3 mb-2 align-items-end" method="get" action="buscar.php">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label for="cedula_buscar" class="form-label">Cédula del Responsable</label>
                 <input type="text" class="form-control form-control-sm" id="cedula_buscar" name="cedula" value="<?= htmlspecialchars($cedula_buscada) ?>" placeholder="Número de cédula">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label for="regional_buscar" class="form-label">Regional del Activo</label>
                 <select name="regional" class="form-select form-select-sm" id="regional_buscar">
                     <option value="">-- Todas --</option>
@@ -192,8 +202,18 @@ function getEstadoBadgeClass($estado) {
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="col-md-2">
+                <label for="empresa_buscar" class="form-label">Empresa</label>
+                <select name="empresa" class="form-select form-select-sm" id="empresa_buscar">
+                    <option value="">-- Todas --</option>
+                    <?php foreach ($empresas_disponibles as $e): ?>
+                        <option value="<?= htmlspecialchars($e) ?>" <?= ($e == $empresa_buscada) ? 'selected' : '' ?>><?= htmlspecialchars($e) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
             <div class="col-md-3">
-                <div class="form-check mt-4"> <input class="form-check-input" type="checkbox" value="1" id="incluir_bajas" name="incluir_bajas" <?= $incluir_dados_baja ? 'checked' : '' ?>>
+                <div class="form-check mt-4 pt-2">
+                    <input class="form-check-input" type="checkbox" value="1" id="incluir_bajas" name="incluir_bajas" <?= $incluir_dados_baja ? 'checked' : '' ?>>
                     <label class="form-check-label" for="incluir_bajas">
                         Incluir Dados de Baja
                     </label>
@@ -202,8 +222,10 @@ function getEstadoBadgeClass($estado) {
             <div class="col-md-2">
                 <button type="submit" class="btn btn-custom-search w-100 btn-sm">Buscar</button>
             </div>
-            <?php if (empty($cedula_buscada) && empty($regional_buscada) && !$criterio_busqueda_activo): ?>
-            <div class="col-12 text-center mt-3"> <button type="submit" name="buscar_todos" value="1" class="btn btn-outline-secondary btn-sm">
+            
+            <?php if (empty($cedula_buscada) && empty($regional_buscada) && empty($empresa_buscada) && !$criterio_busqueda_activo): ?>
+            <div class="col-12 text-center mt-3"> 
+                <button type="submit" name="buscar_todos" value="1" class="btn btn-outline-secondary btn-sm">
                     Mostrar Todos los Activos <?= !$incluir_dados_baja ? '(Operativos)' : '(Incl. Bajas)' ?>
                 </button>
             </div>
@@ -212,16 +234,15 @@ function getEstadoBadgeClass($estado) {
     </div>
 
     <?php if (!empty($error_consulta)): ?>
-        <div class="alert alert-danger mt-3"><?= htmlspecialchars($error_consulta) ?></div>
+        <div class="alert alert-danger mt-3"><strong>Error en la consulta:</strong> <?= htmlspecialchars($error_consulta) ?></div>
     <?php endif; ?>
 
     <?php if ($criterio_busqueda_activo && empty($error_consulta)): ?>
         <div class="mt-4">
         <?php if (!empty($activos_encontrados)) :
-            // Agrupar activos por cédula (y nombre, cargo para el encabezado del grupo)
             $activos_agrupados = [];
             foreach ($activos_encontrados as $activo_item) {
-                $key_grupo = $activo_item['cedula'] . '-' . $activo_item['nombre']; // Clave única para el grupo
+                $key_grupo = $activo_item['cedula'] . '-' . $activo_item['nombre'];
                 if (!isset($activos_agrupados[$key_grupo])) {
                     $activos_agrupados[$key_grupo]['info'] = [
                         'cedula' => $activo_item['cedula'],
@@ -239,6 +260,7 @@ function getEstadoBadgeClass($estado) {
                     <input type="hidden" name="tipo_informe" value="busqueda_personalizada">
                     <input type="hidden" name="cedula_export" value="<?= htmlspecialchars($cedula_buscada) ?>">
                     <input type="hidden" name="regional_export" value="<?= htmlspecialchars($regional_buscada) ?>">
+                    <input type="hidden" name="empresa_export" value="<?= htmlspecialchars($empresa_buscada) ?>">
                     <input type="hidden" name="incluir_bajas_export" value="<?= $incluir_dados_baja ? '1' : '0' ?>">
                     <button type="submit" class="btn btn-sm btn-export">
                         <i class="bi bi-file-earmark-excel-fill"></i> Exportar Resultados
@@ -257,11 +279,10 @@ function getEstadoBadgeClass($estado) {
                         <div class="info-block">
                             <h4><?= htmlspecialchars($responsable_info['nombre']) ?></h4>
                             <p><strong>Cédula:</strong> <?= htmlspecialchars($responsable_info['cedula']) ?> |
-                               <strong>Cargo:</strong> <?= htmlspecialchars($responsable_info['cargo']) ?></p>
+                                <strong>Cargo:</strong> <?= htmlspecialchars($responsable_info['cargo']) ?></p>
                         </div>
                         <div class="actions-block">
                             <?php
-                            // Verificar si hay al menos un activo NO dado de baja para este responsable
                             $hay_activos_operativos = false;
                             foreach ($activos_del_responsable as $a_temp) {
                                 if ($a_temp['estado'] != 'Dado de Baja') {
@@ -269,7 +290,7 @@ function getEstadoBadgeClass($estado) {
                                     break;
                                 }
                             }
-                            if ($hay_activos_operativos && tiene_permiso_para('generar_informes')): // O el permiso específico para generar actas si lo creas
+                            if ($hay_activos_operativos && tiene_permiso_para('generar_informes')):
                             ?>
                             <a href="generar_acta.php?cedula=<?= htmlspecialchars($responsable_info['cedula']) ?>&tipo_acta=entrega" class="btn btn-sm btn-outline-secondary" target="_blank" title="Generar Acta de Entrega para <?= htmlspecialchars($responsable_info['nombre']) ?>">
                                 <i class="bi bi-file-earmark-pdf-fill"></i> Generar Acta
@@ -282,7 +303,9 @@ function getEstadoBadgeClass($estado) {
                             <thead>
                                 <tr>
                                     <th>#</th><th>Tipo</th><th>Marca</th><th>Serie</th><th>Estado</th>
-                                    <th>Regional</th><th>Valor</th><th>Fecha Reg.</th><th>Acciones</th>
+                                    <th>Regional</th>
+                                    <th>Empresa</th> 
+                                    <th>Valor</th><th>Fecha Reg.</th><th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -294,6 +317,7 @@ function getEstadoBadgeClass($estado) {
                                     <td><?= htmlspecialchars($activo['serie']) ?></td>
                                     <td><span class="<?= getEstadoBadgeClass($activo['estado']) ?>"><?= htmlspecialchars($activo['estado']) ?></span></td>
                                     <td><?= htmlspecialchars($activo['regional']) ?></td>
+                                    <td><?= htmlspecialchars($activo['Empresa'] ?? 'N/A') ?></td> 
                                     <td>$<?= htmlspecialchars(number_format(floatval($activo['valor_aproximado']), 0, ',', '.')) ?></td>
                                     <td><?= htmlspecialchars(date("d/m/Y", strtotime($activo['fecha_registro']))) ?></td>
                                     <td>
@@ -314,7 +338,11 @@ function getEstadoBadgeClass($estado) {
                 </div>
             <?php endforeach; ?>
         <?php elseif ($criterio_busqueda_activo): ?>
-            <div class="alert alert-warning mt-3">No se encontraron activos que coincidan con los criterios de búsqueda especificados.</div>
+            <div class="alert alert-warning mt-3">No se encontraron activos que coincidan con los criterios de búsqueda especificados.
+            <?php // Descomenta la siguiente línea para ver la consulta SQL incluso cuando no hay resultados:
+                  // echo "<br><small>Consulta intentada: " . htmlspecialchars($sql) . " con parámetros: " . htmlspecialchars(json_encode($params)) . "</small>";
+            ?>
+            </div>
         <?php endif; ?>
         </div>
     <?php endif; ?>

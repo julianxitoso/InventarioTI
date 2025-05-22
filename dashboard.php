@@ -8,6 +8,7 @@ if (!isset($_SESSION['usuario'])) {
 require_once 'backend/db.php'; 
 if (isset($conn) && !isset($conexion)) { $conexion = $conn; }
 if (!isset($conexion) || !$conexion) { die("Error de conexión a la base de datos."); }
+$conexion->set_charset("utf8mb4"); // Asegurar UTF-8
 
 // --- Consultas para KPIs y Gráficos ---
 
@@ -15,14 +16,12 @@ if (!isset($conexion) || !$conexion) { die("Error de conexión a la base de dato
 $result_total_activos = mysqli_query($conexion, "SELECT COUNT(*) as total FROM activos_tecnologicos");
 $total_activos = ($result_total_activos) ? mysqli_fetch_assoc($result_total_activos)['total'] : 0;
 
-// (KPI de Valor Estimado ELIMINADO)
-
-// 2. Activos por Estado
-$activos_por_estado_data = [];
-$result_por_estado = mysqli_query($conexion, "SELECT estado, COUNT(*) as cantidad FROM activos_tecnologicos GROUP BY estado ORDER BY cantidad DESC");
-if ($result_por_estado) {
-    while ($row = mysqli_fetch_assoc($result_por_estado)) {
-        $activos_por_estado_data[] = $row;
+// 2. Activos por Estado (para el KPI)
+$activos_por_estado_data_kpi = [];
+$result_por_estado_kpi = mysqli_query($conexion, "SELECT estado, COUNT(*) as cantidad FROM activos_tecnologicos GROUP BY estado ORDER BY cantidad DESC");
+if ($result_por_estado_kpi) {
+    while ($row = mysqli_fetch_assoc($result_por_estado_kpi)) {
+        $activos_por_estado_data_kpi[] = $row;
     }
 }
 
@@ -30,22 +29,56 @@ if ($result_por_estado) {
 $result_total_usuarios = mysqli_query($conexion, "SELECT COUNT(DISTINCT cedula) as total_usuarios FROM activos_tecnologicos WHERE cedula IS NOT NULL AND cedula != ''");
 $total_usuarios_con_activos = ($result_total_usuarios) ? mysqli_fetch_assoc($result_total_usuarios)['total_usuarios'] : 0;
 
-// 4. Datos para Gráfico: Activos por Tipo
-$labels_tipo_activo = [];
-$data_tipo_activo = [];
-// Podrías aumentar el LIMIT si tienes muchos tipos de activo y quieres ver más
-$result_graf_tipo = mysqli_query($conexion, "SELECT tipo_activo, COUNT(*) as cantidad FROM activos_tecnologicos GROUP BY tipo_activo ORDER BY cantidad DESC LIMIT 7"); 
-if ($result_graf_tipo) {
-    while ($row = mysqli_fetch_assoc($result_graf_tipo)) {
-        $labels_tipo_activo[] = $row['tipo_activo'];
-        $data_tipo_activo[] = $row['cantidad'];
+// 4. Datos para Gráfico: Activos por Tipo (con detalle de estado para tooltip)
+$raw_data_tipo_estado = [];
+$result_graf_tipo_detalle = mysqli_query($conexion, 
+    "SELECT tipo_activo, estado, COUNT(*) as cantidad 
+     FROM activos_tecnologicos 
+     WHERE tipo_activo IS NOT NULL AND tipo_activo != ''
+     GROUP BY tipo_activo, estado 
+     ORDER BY tipo_activo, estado"
+);
+
+if ($result_graf_tipo_detalle) {
+    while ($row = mysqli_fetch_assoc($result_graf_tipo_detalle)) {
+        $raw_data_tipo_estado[] = $row;
     }
+}
+
+$tipo_activo_summary = [];
+foreach ($raw_data_tipo_estado as $item) {
+    if (!isset($tipo_activo_summary[$item['tipo_activo']])) {
+        $tipo_activo_summary[$item['tipo_activo']] = [
+            'total' => 0,
+            'statuses' => []
+        ];
+    }
+    $tipo_activo_summary[$item['tipo_activo']]['total'] += $item['cantidad'];
+    // Ordenar statuses para consistencia en tooltip si se desea
+    $tipo_activo_summary[$item['tipo_activo']]['statuses'][$item['estado']] = $item['cantidad'];
+}
+
+uasort($tipo_activo_summary, function ($a, $b) {
+    return $b['total'] - $a['total'];
+});
+
+$labels_tipo_activo_new = [];
+$data_tipo_activo_total = [];
+$detailed_status_data_for_tooltip = [];
+$limit_tipos = 7;
+$count_tipos = 0;
+foreach ($tipo_activo_summary as $tipo => $summary) {
+    if ($count_tipos >= $limit_tipos) break;
+    $labels_tipo_activo_new[] = $tipo;
+    $data_tipo_activo_total[] = $summary['total'];
+    $detailed_status_data_for_tooltip[$tipo] = $summary['statuses'];
+    $count_tipos++;
 }
 
 // 5. Datos para Gráfico: Activos por Regional
 $labels_regional = [];
 $data_regional = [];
-$result_graf_regional = mysqli_query($conexion, "SELECT regional, COUNT(*) as cantidad FROM activos_tecnologicos GROUP BY regional ORDER BY cantidad DESC LIMIT 7");
+$result_graf_regional = mysqli_query($conexion, "SELECT regional, COUNT(*) as cantidad FROM activos_tecnologicos WHERE regional IS NOT NULL AND regional != '' GROUP BY regional ORDER BY cantidad DESC LIMIT 7");
 if ($result_graf_regional) {
     while ($row = mysqli_fetch_assoc($result_graf_regional)) {
         $labels_regional[] = $row['regional'];
@@ -61,6 +94,19 @@ if ($result_ultimos) {
         $ultimos_activos[] = $row;
     }
 }
+
+// 7. Datos para Gráfico: Activos por Empresa (NUEVO)
+$labels_empresa = [];
+$data_empresa = [];
+// Asumiendo que la columna es 'Empresa'. Si es 'empresa', cambiar aquí.
+$result_graf_empresa = mysqli_query($conexion, "SELECT Empresa, COUNT(*) as cantidad FROM activos_tecnologicos WHERE Empresa IS NOT NULL AND Empresa != '' GROUP BY Empresa ORDER BY cantidad DESC LIMIT 7");
+if ($result_graf_empresa) {
+    while ($row = mysqli_fetch_assoc($result_graf_empresa)) {
+        $labels_empresa[] = $row['Empresa']; // Usar 'Empresa' como la clave
+        $data_empresa[] = $row['cantidad'];
+    }
+}
+
 
 mysqli_close($conexion);
 ?>
@@ -78,7 +124,7 @@ mysqli_close($conexion);
         .logo-container img { width: 180px; height: auto; }
         .navbar-custom { background-color: #191970; }
         .navbar-custom .nav-link { color: white !important; font-weight: 500; padding: 0.5rem 1rem;}
-        .navbar-custom .nav-link:hover { background-color: #8b0000; color: white; }
+        .navbar-custom .nav-link:hover, .navbar-custom .nav-link.active { background-color: #8b0000; color: white; }
 
         .kpi-card {
             background-color: #fff; border-radius: 0.5rem; padding: 1.25rem;
@@ -89,15 +135,15 @@ mysqli_close($conexion);
         .kpi-card .kpi-value { font-size: 2.25rem; font-weight: 700; color: #191970; }
         .kpi-card .kpi-label { font-size: 0.9rem; color: #6c757d; margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.5px; }
         
-        .chart-container { /* Para los gráficos y la tabla de últimos activos */
+        .chart-container { 
             background-color: #fff; border-radius: 0.5rem; padding: 1.5rem;
             margin-bottom: 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,0.075);
         }
         .chart-container h5 { margin-bottom: 1rem; text-align: center; color: #343a40; font-weight: 600;}
-        .chart-canvas-wrapper { /* Nuevo wrapper para controlar altura si es necesario */
-             position: relative;
-             height: 300px; /* Altura fija para los gráficos, ajusta según necesidad */
-             width: 100%;
+        .chart-canvas-wrapper {
+            position: relative;
+            height: 280px; /* Altura fija para los gráficos */
+            width: 100%;
         }
 
         .status-list-group .list-group-item { display: flex; justify-content: space-between; align-items: center; border-color: #e9ecef; padding: 0.6rem 1rem; font-size: 0.9em; }
@@ -121,10 +167,11 @@ mysqli_close($conexion);
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item"><a class="nav-link" href="menu.php">Inicio</a></li>
-                <li class="nav-item"><a class="nav-link" href="index.html">Registrar Activo</a></li>
+                <li class="nav-item"><a class="nav-link" href="index.php">Registrar Activo</a></li>
                 <li class="nav-item"><a class="nav-link" href="editar.php">Editar Activos</a></li>
                 <li class="nav-item"><a class="nav-link" href="buscar.php">Buscar Activos</a></li>
                 <li class="nav-item"><a class="nav-link" href="informes.php">Informes</a></li>
+                <li class="nav-item"><a class="nav-link active" aria-current="page" href="dashboard.php">Dashboard</a></li>
             </ul>
             <form class="d-flex ms-auto" action="logout.php" method="post">
                 <button class="btn btn-outline-light" type="submit">Cerrar sesión</button>
@@ -152,37 +199,45 @@ mysqli_close($conexion);
         <div class="col-lg-4 col-md-12 col-sm-12">
             <div class="kpi-card">
                 <div class="kpi-label" style="margin-bottom:0.5rem; font-size:1rem; color: #343a40;">Activos por Estado</div>
-                 <ul class="list-group list-group-flush status-list-group text-start">
-                    <?php if (!empty($activos_por_estado_data)): ?>
-                        <?php foreach (array_slice($activos_por_estado_data, 0, 3) as $estado_info): ?>
-                            <li class="list-group-item">
-                                <?= htmlspecialchars($estado_info['estado']) ?>
-                                <span class="badge rounded-pill bg-primary"><?= $estado_info['cantidad'] ?></span>
-                            </li>
-                        <?php endforeach; ?>
-                         <?php if(count($activos_por_estado_data) > 3) echo "<li class='list-group-item text-muted text-center' style='font-size:0.8em;'>... y otros estados</li>"; ?>
-                    <?php else: ?>
-                        <li class="list-group-item text-muted">No hay datos de estado.</li>
-                    <?php endif; ?>
-                </ul>
+                   <ul class="list-group list-group-flush status-list-group text-start">
+                        <?php if (!empty($activos_por_estado_data_kpi)): ?>
+                            <?php foreach (array_slice($activos_por_estado_data_kpi, 0, 3) as $estado_info): // Mostrar solo los top 3 o 4 ?>
+                                <li class="list-group-item">
+                                    <?= htmlspecialchars($estado_info['estado']) ?>
+                                    <span class="badge rounded-pill bg-primary"><?= $estado_info['cantidad'] ?></span>
+                                </li>
+                            <?php endforeach; ?>
+                               <?php if(count($activos_por_estado_data_kpi) > 3) echo "<li class='list-group-item text-muted text-center' style='font-size:0.8em;'>... y otros estados</li>"; ?>
+                        <?php else: ?>
+                            <li class="list-group-item text-muted">No hay datos de estado.</li>
+                        <?php endif; ?>
+                   </ul>
             </div>
         </div>
     </div>
 
     <div class="row">
-        <div class="col-lg-6 col-md-12"> 
+        <div class="col-lg-4 col-md-12"> 
             <div class="chart-container">
-                <h5>Activos por Tipo (Top 7)</h5>
+                <h5>Activos por Tipo (Top <?= $limit_tipos ?>)</h5>
                 <div class="chart-canvas-wrapper">
                     <canvas id="graficoTipoActivo"></canvas>
                 </div>
             </div>
         </div>
-        <div class="col-lg-6 col-md-12">
+        <div class="col-lg-4 col-md-6"> 
             <div class="chart-container">
                 <h5>Activos por Regional (Top 7)</h5>
-                 <div class="chart-canvas-wrapper">
+                   <div class="chart-canvas-wrapper">
                     <canvas id="graficoRegional"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-md-6"> 
+            <div class="chart-container">
+                <h5>Activos por Empresa (Top 7)</h5>
+                <div class="chart-canvas-wrapper">
+                    <canvas id="graficoEmpresa"></canvas>
                 </div>
             </div>
         </div>
@@ -226,29 +281,30 @@ mysqli_close($conexion);
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const defaultChartColors = [ // Paleta de colores más corporativos/neutros
-        'rgba(25, 25, 112, 0.8)',   // Azul Oscuro (principal de tu navbar)
-        'rgba(70, 130, 180, 0.8)',  // Azul Acero
-        'rgba(100, 149, 237, 0.8)', // Azul Maíz
-        'rgba(135, 206, 230, 0.8)', // Azul Cielo Claro
-        'rgba(112, 128, 144, 0.8)', // Gris Pizarra
-        'rgba(128, 128, 128, 0.8)', // Gris
-        'rgba(169, 169, 169, 0.8)'  // Gris Oscuro (para más variedad)
+    const defaultChartColors = [
+        'rgba(25, 25, 112, 0.8)',   // Midnight Blue
+        'rgba(70, 130, 180, 0.8)',  // Steel Blue
+        'rgba(100, 149, 237, 0.8)', // Cornflower Blue
+        'rgba(173, 216, 230, 0.8)', // Light Blue
+        'rgba(119, 136, 153, 0.8)', // Light Slate Gray
+        'rgba(128, 128, 128, 0.8)', // Gray
+        'rgba(192, 192, 192, 0.8)'  // Silver
     ];
     const defaultBorderColors = defaultChartColors.map(color => color.replace('0.8', '1'));
 
+    // Datos para Gráfico de Tipo de Activo (con tooltip modificado)
+    const labelsTipo = <?= json_encode($labels_tipo_activo_new) ?>;
+    const dataTipoTotal = <?= json_encode($data_tipo_activo_total) ?>;
+    const detailedStatusData = <?= json_encode($detailed_status_data_for_tooltip) ?>;
 
-    // Datos para Gráfico de Tipo de Activo
-    const labelsTipo = <?= json_encode($labels_tipo_activo) ?>;
-    const dataTipo = <?= json_encode($data_tipo_activo) ?>;
     if (document.getElementById('graficoTipoActivo') && labelsTipo.length > 0) {
         new Chart(document.getElementById('graficoTipoActivo'), {
             type: 'bar', 
             data: {
                 labels: labelsTipo,
                 datasets: [{
-                    label: 'Cantidad',
-                    data: dataTipo,
+                    label: 'Cantidad Total', // Etiqueta para la leyenda si se muestra
+                    data: dataTipoTotal,
                     backgroundColor: defaultChartColors,
                     borderColor: defaultBorderColors,
                     borderWidth: 1
@@ -256,9 +312,42 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false, // Permitir que la altura del wrapper controle
-                scales: { y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } } },
-                plugins: { legend: { display: false } } 
+                maintainAspectRatio: false,
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        ticks: { 
+                            stepSize: Math.max(1, Math.ceil(Math.max(...dataTipoTotal) / 10)), // Ajustar stepSize
+                            precision: 0 
+                        } 
+                    } 
+                },
+                plugins: { 
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let tipoActivo = context.label;
+                                let total = context.parsed.y;
+                                return `${tipoActivo}: ${total} (Total)`;
+                            },
+                            footer: function(tooltipItems) {
+                                const tipoActivo = tooltipItems[0].label;
+                                const statuses = detailedStatusData[tipoActivo];
+                                let footerLines = [];
+                                if (statuses) {
+                                    footerLines.push(''); // Espacio
+                                    for (const estado in statuses) {
+                                        if (statuses.hasOwnProperty(estado)) {
+                                            footerLines.push(`${estado}: ${statuses[estado]}`);
+                                        }
+                                    }
+                                }
+                                return footerLines;
+                            }
+                        }
+                    }
+                } 
             }
         });
     }
@@ -268,24 +357,54 @@ document.addEventListener('DOMContentLoaded', function () {
     const dataRegional = <?= json_encode($data_regional) ?>;
     if (document.getElementById('graficoRegional') && labelsRegional.length > 0) {
         new Chart(document.getElementById('graficoRegional'), {
-            type: 'doughnut', // Doughnut es visualmente atractivo y ahorra espacio vs pie
+            type: 'doughnut',
             data: {
                 labels: labelsRegional,
                 datasets: [{
                     label: 'Activos',
                     data: dataRegional,
                     backgroundColor: defaultChartColors,
-                    borderColor: '#fff', // Borde blanco para separar segmentos
+                    borderColor: '#fff',
                     borderWidth: 2,
                     hoverOffset: 4
                 }]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false, // Permitir que la altura del wrapper controle
+                maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        position: 'bottom', // Leyenda abajo para doughnuts/pies
+                        position: 'bottom',
+                        labels: { padding: 15, boxWidth: 12 }
+                    }
+                }
+            }
+        });
+    }
+
+    // <<< NUEVO: Datos para Gráfico de Empresa >>>
+    const labelsEmpresa = <?= json_encode($labels_empresa) ?>;
+    const dataEmpresa = <?= json_encode($data_empresa) ?>;
+    if (document.getElementById('graficoEmpresa') && labelsEmpresa.length > 0) {
+        new Chart(document.getElementById('graficoEmpresa'), {
+            type: 'pie', // Pie es bueno para pocas categorías
+            data: {
+                labels: labelsEmpresa,
+                datasets: [{
+                    label: 'Activos',
+                    data: dataEmpresa,
+                    backgroundColor: defaultChartColors,
+                    borderColor: '#fff',
+                    borderWidth: 2,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
                         labels: { padding: 15, boxWidth: 12 }
                     }
                 }

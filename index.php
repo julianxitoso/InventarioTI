@@ -271,8 +271,8 @@ $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
                     <label for="empresa">Empresa</label>
                     <select class="form-control" name="empresa" id="empresa" required>
                         <option value="">Seleccione...</option>
-                        <option value="Finansueños">Finansueños</option>
                         <option value="Arpesod">Arpesod</option>
+                        <option value="Finansueños">Finansueños</option>
                     </select>
                 </div>
             </div>
