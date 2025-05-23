@@ -143,22 +143,38 @@ mysqli_close($conexion);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard de Activos</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
     <style>
+        
         body { 
-            background-color: #ffffff !important; 
+            background-color: #ffffff !important; /* Fondo del body blanco */
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding-top: 80px; /* Espacio para la barra superior fija */
         }
         .top-bar-custom {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 1030;
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 0.5rem 1.5rem; background-color: #f8f9fa; 
-            border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            position: fixed; /* Fija la barra en la parte superior */
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030; /* Asegura que esté por encima de otros elementos */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1.5rem; /* Ajusta el padding según necesites */
+            background-color: #f8f9fa; /* Un color de fondo claro para la barra */
+            border-bottom: 1px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
-        .logo-container-top img { width: auto; height: 75px; object-fit: contain; margin-right: 15px; }
-        .user-info-top { font-size: 0.9rem; }
-
+        .logo-container-top img {
+            width: auto; /* Ancho automático */
+            height: 75px; /* Altura fija para el logo en la barra */
+            object-fit: contain;
+            margin-right: 15px; /* Espacio a la derecha del logo */
+        }
+        .user-info-top {
+            font-size: 0.9rem;
+        }
         /* Estilos específicos del Dashboard */
         .kpi-card { background-color: #fff; border-radius: 0.5rem; padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,0.075); text-align: center; min-height: 130px; display: flex; flex-direction: column; justify-content: center; border: 1px solid #e9ecef; }
         .kpi-card .kpi-value { font-size: 2rem; font-weight: 700; color: #191970; line-height:1.2; }
@@ -178,23 +194,22 @@ mysqli_close($conexion);
     </style>
 </head>
 <body>
-
 <div class="top-bar-custom">
-    <div class="logo-container-top">
-        <a href="menu.php" title="Ir a Inicio">
-            <img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS">
-        </a>
+        <div class="logo-container-top">
+            <a href="menu.php" title="Ir a Inicio">
+                <img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS">
+            </a>
+        </div>
+        <div class="d-flex align-items-center">
+            <span class="text-dark me-3 user-info-top">
+                <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?> 
+                (<?= htmlspecialchars(ucfirst($rol_usuario_actual_sesion)) ?>)
+            </span>
+            <form action="logout.php" method="post" class="d-flex">
+                <button class="btn btn-outline-danger btn-sm" type="submit"><i class="bi bi-box-arrow-right"></i> Cerrar sesión</button>
+            </form>
+        </div>
     </div>
-    <div class="d-flex align-items-center">
-        <span class="text-dark me-3 user-info-top">
-            <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?> 
-            (<?= htmlspecialchars(ucfirst($rol_usuario_actual_sesion)) ?>)
-        </span>
-        <form action="logout.php" method="post" class="d-flex">
-            <button class="btn btn-outline-danger btn-sm" type="submit"><i class="bi bi-box-arrow-right"></i> Cerrar sesión</button>
-        </form>
-    </div>
-</div>
 
 <div class="container-fluid mt-4 px-md-4 px-2"> 
     <h3 class="mb-4 text-center page-header-title">Dashboard de Activos Tecnológicos</h3>

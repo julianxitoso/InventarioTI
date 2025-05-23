@@ -62,6 +62,9 @@ unset($_SESSION['error_global']);
             object-fit: contain;
             margin-right: 15px; /* Espacio a la derecha del logo */
         }
+        .user-info-top {
+            font-size: 0.9rem;
+        }
         .card.form-card { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: none; }
         .form-label { font-weight: 500; color: #495057; }
         .form-section { border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px; margin-bottom: 20px; background-color: #fff; }

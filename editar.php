@@ -462,6 +462,9 @@ function textarea_editable($name, $label, $value, $form_id_suffix_func, $is_read
             object-fit: contain;
             margin-right: 15px; /* Espacio a la derecha del logo */
         }
+        .user-info-top {
+            font-size: 0.9rem;
+        }
         .btn-custom-search {
             background-color: #191970;
             color: white;
