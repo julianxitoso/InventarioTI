@@ -12,9 +12,6 @@ if (!defined('HISTORIAL_TIPO_ACTUALIZACION')) define('HISTORIAL_TIPO_ACTUALIZACI
 if (!defined('HISTORIAL_TIPO_TRASLADO')) define('HISTORIAL_TIPO_TRASLADO', 'TRASLADO');
 if (!defined('HISTORIAL_TIPO_BAJA')) define('HISTORIAL_TIPO_BAJA', 'BAJA');
 
-$nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
-$rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
-
 
 if (isset($conn) && !isset($conexion)) {
     $conexion = $conn;
@@ -437,31 +434,52 @@ function textarea_editable($name, $label, $value, $form_id_suffix_func, $is_read
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        body { 
-            background-color: #ffffff !important; /* Fondo del body blanco */
+        /* ... (tus estilos CSS sin cambios) ... */
+        body {
+            background: #f8f9fa;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-top: 80px; /* Espacio para la barra superior fija */
         }
-        .top-bar-custom {
-            position: fixed; /* Fija la barra en la parte superior */
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 1030; /* Asegura que esté por encima de otros elementos */
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem 1.5rem; /* Ajusta el padding según necesites */
-            background-color: #f8f9fa; /* Un color de fondo claro para la barra */
-            border-bottom: 1px solid #dee2e6;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+
+        .container-main {
+            margin-top: 20px;
+            margin-bottom: 40px;
         }
-        .logo-container-top img {
-            width: auto; /* Ancho automático */
-            height: 75px; /* Altura fija para el logo en la barra */
+
+        h3.page-title {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 25px;
+        }
+
+        .logo-container {
+            text-align: left;
+            margin-bottom: 5px;
+            padding-top: 10px;
+            margin-left: 30px;
+        }
+
+        .logo-container img {
+            width: 195px;
+            height: 80px;
             object-fit: contain;
-            margin-right: 15px; /* Espacio a la derecha del logo */
         }
+
+        .navbar-custom {
+            background-color: #191970;
+        }
+
+        .navbar-custom .nav-link {
+            color: white !important;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+        }
+
+        .navbar-custom .nav-link:hover,
+        .navbar-custom .nav-link.active {
+            background-color: #8b0000;
+            color: white;
+        }
+
         .btn-custom-search {
             background-color: #191970;
             color: white;
@@ -603,24 +621,8 @@ function textarea_editable($name, $label, $value, $form_id_suffix_func, $is_read
 </head>
 
 <body>
-<div class="top-bar-custom">
-        <div class="logo-container-top">
-            <a href="menu.php" title="Ir a Inicio">
-                <img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS">
-            </a>
-        </div>
-        <div class="d-flex align-items-center">
-            <span class="text-dark me-3 user-info-top">
-                <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?> 
-                (<?= htmlspecialchars(ucfirst($rol_usuario_actual_sesion)) ?>)
-            </span>
-            <form action="logout.php" method="post" class="d-flex">
-                <button class="btn btn-outline-danger btn-sm" type="submit"><i class="bi bi-box-arrow-right"></i> Cerrar sesión</button>
-            </form>
-        </div>
-    </div>
-
-
+    
+    <div class="logo-container"> <a href="menu.php"><img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS"></a> </div>
     <div class="container-main container mt-4">
         <div class="card search-card p-4">
             <h3 class="page-title mb-4 text-center">Administrar Activos (Operativos)</h3>

@@ -8,6 +8,9 @@ if (isset($conn) && !isset($conexion)) { $conexion = $conn; }
 if (!isset($conexion) || !$conexion) { die("Error de conexión a la base de datos en index.php."); }
 $conexion->set_charset("utf8mb4");
 
+$nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
+$rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
+
 $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
 $rol_usuario_sesion = $_SESSION['rol_usuario'] ?? '';
 
@@ -34,14 +37,31 @@ unset($_SESSION['error_global']);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        body { background: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .container-main { margin-top: 20px; margin-bottom: 40px; max-width: 1100px; }
-        h3.page-title { color: #333; font-weight: 600; margin-bottom: 25px; }
-        .logo-container { text-align: center; margin-bottom: 5px; padding-top:10px; }
-        .logo-container img { width: 180px; height: 70px; object-fit: contain; }
-        .navbar-custom { background-color: #191970; }
-        .navbar-custom .nav-link { color: white !important; font-weight: 500; padding: 0.5rem 1rem;}
-        .navbar-custom .nav-link:hover, .navbar-custom .nav-link.active { background-color: #8b0000; color: white; }
+         body { 
+            background-color: #ffffff !important; /* Fondo del body blanco */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-top: 80px; /* Espacio para la barra superior fija */
+        }
+        .top-bar-custom {
+            position: fixed; /* Fija la barra en la parte superior */
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030; /* Asegura que esté por encima de otros elementos */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem 1.5rem; /* Ajusta el padding según necesites */
+            background-color: #f8f9fa; /* Un color de fondo claro para la barra */
+            border-bottom: 1px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .logo-container-top img {
+            width: auto; /* Ancho automático */
+            height: 75px; /* Altura fija para el logo en la barra */
+            object-fit: contain;
+            margin-right: 15px; /* Espacio a la derecha del logo */
+        }
         .card.form-card { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: none; }
         .form-label { font-weight: 500; color: #495057; }
         .form-section { border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px; margin-bottom: 20px; background-color: #fff; }
@@ -62,23 +82,22 @@ unset($_SESSION['error_global']);
     </style>
 </head>
 <body>
-    <div class="logo-container"><a href="menu.php"><img src="imagenes/logo3.png" alt="Logo"></a></div>
-    <nav class="navbar navbar-expand-lg navbar-custom">
-        <div class="container-fluid">
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"><span class="navbar-toggler-icon" style="background-image: url(&quot;data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(255,255,255,0.8)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e&quot;);"></span></button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'menu.php') ? 'active' : '' ?>" href="menu.php">Inicio</a></li>
-                    <?php if (tiene_permiso_para('crear_activo')): ?><li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'index.php') ? 'active' : '' ?>" aria-current="page" href="index.php">Registrar Activo</a></li><?php endif; ?>
-                    <?php if (tiene_permiso_para('editar_activo_detalles') || tiene_permiso_para('trasladar_activo') || tiene_permiso_para('dar_baja_activo') ): ?><li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'editar.php') ? 'active' : '' ?>" href="editar.php">Editar/Trasladar/Baja</a></li><?php endif; ?>
-                    <?php if (tiene_permiso_para('buscar_activo')): ?><li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'buscar.php') ? 'active' : '' ?>" href="buscar.php">Buscar Activos</a></li><?php endif; ?>
-                    <?php if (tiene_permiso_para('generar_informes')): ?><li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'informes.php') ? 'active' : '' ?>" href="informes.php">Informes</a></li><?php endif; ?>
-                    <?php if (tiene_permiso_para('ver_dashboard')): ?><li class="nav-item"><a class="nav-link <?= (basename($_SERVER['PHP_SELF']) == 'dashboard.php') ? 'active' : '' ?>" href="dashboard.php">Dashboard</a></li><?php endif; ?>
-                </ul>
-                <form class="d-flex ms-auto" action="logout.php" method="post"><button class="btn btn-outline-light" type="submit">Cerrar sesión</button></form>
-            </div>
+<div class="top-bar-custom">
+        <div class="logo-container-top">
+            <a href="menu.php" title="Ir a Inicio">
+                <img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS">
+            </a>
         </div>
-    </nav>
+        <div class="d-flex align-items-center">
+            <span class="text-dark me-3 user-info-top">
+                <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?> 
+                (<?= htmlspecialchars(ucfirst($rol_usuario_actual_sesion)) ?>)
+            </span>
+            <form action="logout.php" method="post" class="d-flex">
+                <button class="btn btn-outline-danger btn-sm" type="submit"><i class="bi bi-box-arrow-right"></i> Cerrar sesión</button>
+            </form>
+        </div>
+    </div>
 
 <div class="container-main container mt-4">
     <h3 class="page-title text-center mb-4">Registrar Activos (por Responsable)</h3>

@@ -1,14 +1,13 @@
 <?php
 session_start(); // Necesario para mensajes flash
-// require_once 'backend/auth_check.php'; // Se quita la restricción de admin para esta página
+// require_once 'backend/auth_check.php'; // NO SE USA RESTRICCIÓN, es auto-registro público
 
 require_once 'backend/db.php'; 
 if (isset($conn) && !isset($conexion)) { $conexion = $conn; }
-// No se necesita $nombre_usuario_sesion porque es una página pública
 
 $regionales_usuarios = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional', 'N/A'];
 $empresas_usuarios = ['Arpesod', 'Finansueños', 'N/A'];
-$rol_fijo_para_creacion = 'registrador'; // Rol asignado automáticamente
+$rol_fijo_para_creacion = 'registrador';
 
 $mensaje = $_SESSION['mensaje_creacion_usuario'] ?? null;
 $error = $_SESSION['error_creacion_usuario'] ?? null;
@@ -23,29 +22,68 @@ unset($_SESSION['error_creacion_usuario']);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        body { background: #f0f2f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding-top: 20px; padding-bottom: 20px;}
-        .container-main { max-width: 700px; width:100%; }
-        .card.form-card { box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: none; }
-        .logo-container { text-align: center; margin-bottom: 1rem; }
-        .logo-container img { width: 180px; height: 70px; object-fit: contain; }
+        body { 
+            background-color: #ffffff !important; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-top: 80px; /* Espacio para la barra superior fija */
+            display: flex; /* Para centrar el container-main verticalmente si el contenido es poco */
+            flex-direction: column; /* Alinear hijos verticalmente */
+            align-items: center; /* Centrar horizontalmente */
+            min-height: 100vh; /* Asegurar que el body ocupe al menos toda la altura */
+        }
+        .top-bar-public { /* Estilo ligeramente diferente para páginas públicas */
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030;
+            display: flex;
+            justify-content: center; /* Centrar logo si es el único elemento principal */
+            align-items: center;
+            padding: 0.5rem 1.5rem;
+            background-color: #f8f9fa; 
+            border-bottom: 1px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .logo-container-top img {
+            width: auto;
+            height: 75px;
+            object-fit: contain;
+        }
+        
+        .container-main { 
+            max-width: 700px; 
+            width:100%; 
+            margin-top: 20px; /* Margen superior para separar del top-bar si no está fixed el top-bar */
+            margin-bottom: 40px;
+        }
+        .card.form-card { 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+            border: 1px solid #e0e0e0; /* Borde sutil para la tarjeta */
+        }
         .form-label { font-weight: 500; color: #495057; }
-        /* Considerar añadir estilos para CAPTCHA si se implementa */
+        .page-header-title { color: #191970; }
     </style>
 </head>
 <body>
 
-<div class="container-main">
-    <div class="logo-container">
-        <a href="login.php"><img src="imagenes/logo3.png" alt="Logo"></a>
+<div class="top-bar-public">
+    <div class="logo-container-top">
+        <a href="login.php" title="Ir a Inicio de Sesión">
+            <img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS">
+        </a>
     </div>
+</div>
+
+<div class="container-main"> 
     <div class="card form-card p-4 p-md-5">
-        <h3 class="page-title text-center mb-4">Auto-Registro de Usuario</h3>
-        <p class="text-center text-muted mb-3">Crea tu cuenta para registrar activos. Serás asignado con el rol de "Registrador".</p>
+        <h3 class="page-title text-center mb-3 page-header-title">Auto-Registro de Usuario</h3>
+        <p class="text-center text-muted mb-4">Crea tu cuenta para registrar activos. Serás asignado con el rol de "Registrador".</p>
 
         <?php if ($mensaje): ?>
             <div class="alert alert-success alert-dismissible fade show" role="alert">
                 <?= htmlspecialchars($mensaje) ?>
-                <a href="login.php" class="alert-link ms-2">Ir a Iniciar Sesión</a>
+                <a href="login.php" class="alert-link ms-2 fw-bold">Ir a Iniciar Sesión</a>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <?php endif; ?>
@@ -68,7 +106,8 @@ unset($_SESSION['error_creacion_usuario']);
             <div class="row">
                 <div class="col-md-6 mb-3">
                     <label for="contrasena" class="form-label">Contraseña <span class="text-danger">*</span></label>
-                    <input type="password" class="form-control" id="contrasena" name="contrasena" required>
+                    <input type="password" class="form-control" id="contrasena" name="contrasena" required minlength="6">
+                     <div class="form-text">Debe tener al menos 6 caracteres.</div>
                 </div>
                 <div class="col-md-6 mb-3">
                     <label for="confirmar_contrasena" class="form-label">Confirmar Contraseña <span class="text-danger">*</span></label>
@@ -100,12 +139,15 @@ unset($_SESSION['error_creacion_usuario']);
                     </select>
                 </div>
             </div>
-
-
+            
             <input type="hidden" name="rol_usuario" value="<?= htmlspecialchars($rol_fijo_para_creacion) ?>">
             
-
-
+            {/* Considera añadir un CAPTCHA aquí para seguridad:
+            <div class="mb-3">
+                <label class="form-label">Verificación de Seguridad <span class="text-danger">*</span></label>
+                [CÓDIGO DE TU CAPTCHA AQUÍ]
+            </div> 
+            */}
 
             <div class="d-grid gap-2 mt-4">
                 <button type="submit" class="btn btn-success btn-lg"><i class="bi bi-person-check-fill"></i> Registrarme</button>
