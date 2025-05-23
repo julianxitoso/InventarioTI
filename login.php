@@ -110,6 +110,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login_submit'])) {
     </style>
 </head>
 <body>
+    
     <div class="login-container">
         <div class="login-header">
             <img src="imagenes/logo3.png" alt="Logo Empresa"> <h2>Inventario de Activos</h2>
@@ -139,7 +140,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login_submit'])) {
 
         <div class="extra-links">
             <p class="mb-1">¿Eres nuevo y necesitas registrar activos?</p>
-            <a href="registrar_usuario.php" class="btn btn-outline-success btn-sm">
+            <a href="registro.php" class="btn btn-outline-success btn-sm">
                 <i class="bi bi-person-plus"></i> Regístrate aquí como Registrador
             </a>
         </div>

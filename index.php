@@ -8,6 +8,8 @@ if (isset($conn) && !isset($conexion)) { $conexion = $conn; }
 if (!isset($conexion) || !$conexion) { die("Error de conexión a la base de datos en index.php."); }
 $conexion->set_charset("utf8mb4");
 
+
+
 $nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
 $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
@@ -22,7 +24,9 @@ $opciones_red = ['Cableada', 'Inalámbrica', 'Ambas', 'N/A'];
 $opciones_estado_general = ['Bueno', 'Regular', 'Malo', 'Nuevo'];
 $opciones_so = ['Windows 10', 'Windows 11', 'Linux', 'MacOS', 'Otro SO', 'N/A SO'];
 $opciones_offimatica = ['Office 365', 'Office Home And Business', 'Office 2021', 'Office 2019', 'Office 2016', 'LibreOffice', 'Google Workspace', 'Otro Office', 'N/A Office'];
-$opciones_antivirus = ['Microsoft Defender', 'Bitdefender', 'ESET NOD32 Antivirus', 'McAfee Total Protection', 'Kaspersky', 'N/A Antivirus', 'Otro Antivirus'];
+$opciones_antivirus = ['Microsoft Defender', 'Bitdefender', 'ESET NOD32 Antivirus', 'McAfee Total Protection', 'Kaspersky', 'N/A Antivirus', 'Otro Antivirus']; 
+$aplicaciones_mas_usadas = ['Manager', 'Excel', 'Word', 'Power Point', 'WhatsApp Web', 'Siesa', 'Finansueños', 'Correo', 'Internet', 'Otros'];
+
 
 $mensaje_global = $_SESSION['mensaje_global'] ?? null;
 $error_global = $_SESSION['error_global'] ?? null;
@@ -145,6 +149,26 @@ unset($_SESSION['error_global']);
                     </select>
                 </div>
             </div>
+            <div class="mb-3">
+                <label class="form-label">Aplicaciones que más usa el responsable: <span class="text-danger">*</span></label>
+                <div class="p-2 border rounded">
+                    <?php foreach ($aplicaciones_mas_usadas as $app): ?>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" 
+                                   name="responsable_aplicaciones[]" 
+                                   value="<?= htmlspecialchars($app) ?>" 
+                                   id="app_<?= htmlspecialchars(str_replace(' ', '_', $app)) ?>">
+                            <label class="form-check-label" for="app_<?= htmlspecialchars(str_replace(' ', '_', $app)) ?>">
+                                <?= htmlspecialchars($app) ?>
+                            </label>
+                        </div>
+                    <?php endforeach; ?>
+                    <input type="text" class="form-control form-control-sm mt-2" 
+                           id="responsable_aplicaciones_otros_texto" 
+                           name="responsable_aplicaciones_otros_texto" 
+                           placeholder="Especifique cuál(es)" style="display: none;">
+                </div>
+            </div>
             <button type="button" class="btn btn-info btn-sm" id="btnConfirmarResponsable">Confirmar Responsable y Agregar Activos</button>
         </div>
 
@@ -239,6 +263,7 @@ unset($_SESSION['error_global']);
 </div>
 
 <script>
+
     // Array para almacenar los activos agregados temporalmente
     let activosParaGuardar = [];
     let responsableConfirmado = false;
@@ -262,6 +287,22 @@ unset($_SESSION['error_global']);
         offimatica: 'activo_offimatica', antivirus: 'activo_antivirus',
         satisfaccion_rating_name: 'activo_satisfaccion_rating' // name de los radios
     };
+
+    const checkOtrosApp = document.getElementById('app_Otros');
+    const textoOtrosApp = document.getElementById('responsable_aplicaciones_otros_texto');
+
+    if (checkOtrosApp) {
+        checkOtrosApp.addEventListener('change', function() {
+            if (this.checked) {
+                textoOtrosApp.style.display = 'block';
+                textoOtrosApp.setAttribute('required', 'true'); // Hacerlo requerido si se marca
+            } else {
+                textoOtrosApp.style.display = 'none';
+                textoOtrosApp.removeAttribute('required');
+                textoOtrosApp.value = ''; // Limpiar el valor si se desmarca
+            }
+        });
+    }
 
     // Autocompletar datos del responsable y bloquear campos
     btnConfirmarResponsable.addEventListener('click', function() {
@@ -448,6 +489,100 @@ unset($_SESSION['error_global']);
         });
         // Los campos del responsable (cedula, nombre, etc.) ya tienen sus names y se enviarán.
     });
+    function buscar_datos_usuario_ajax(cedula, callback) {
+    if (!cedula) return;
+    fetch(`buscar_datos_usuario.php?cedula=${encodeURIComponent(cedula)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error en la respuesta de la red: ' + response.statusText);
+            }
+            return response.json();
+        })
+        .then(data => {
+            callback(data);
+        })
+        .catch(error => {
+            console.error('Error al buscar datos del usuario:', error);
+            // Podrías mostrar un mensaje de error al usuario aquí
+            callback({ encontrado: false, mensaje: 'Error al contactar el servidor.' });
+        });
+}
+
+// Modifica el evento 'click' de btnConfirmarResponsable
+// o añade un evento 'blur' o 'change' al campo de cédula del responsable.
+// Por simplicidad, lo haré al confirmar responsable.
+// O mejor, al cambiar el foco del campo cédula
+const inputCedulaResponsable = document.getElementById('cedula');
+const divInfoAplicaciones = document.createElement('div'); // Contenedor para el mensaje
+divInfoAplicaciones.id = 'infoAplicacionesExistentes';
+divInfoAplicaciones.classList.add('form-text', 'mb-2', 'mt-1', 'p-2', 'border', 'border-info', 'rounded', 'bg-light');
+divInfoAplicaciones.style.display = 'none';
+
+// Insertar el div de info antes del div de los checkboxes de aplicaciones
+const contenedorCheckboxesApp = document.querySelector('label.form-label + div.p-2.border.rounded');
+if (contenedorCheckboxesApp && contenedorCheckboxesApp.previousElementSibling.textContent.includes('Aplicaciones que más usa')) {
+    contenedorCheckboxesApp.parentNode.insertBefore(divInfoAplicaciones, contenedorCheckboxesApp);
+}
+
+
+inputCedulaResponsable.addEventListener('blur', function() {
+    const cedulaVal = this.value.trim();
+    if (cedulaVal) {
+        buscar_datos_usuario_ajax(cedulaVal, function(data) {
+            // Autocompletar nombre, cargo, etc. (como ya lo hacías)
+            if (data.encontrado) {
+                if (document.getElementById('nombre').value === '') document.getElementById('nombre').value = data.nombre_completo || '';
+                if (document.getElementById('cargo').value === '') document.getElementById('cargo').value = data.cargo || '';
+                if (document.getElementById('regional').value === '') document.getElementById('regional').value = data.regional || '';
+                if (document.getElementById('empresa_responsable').value === '') document.getElementById('empresa_responsable').value = data.empresa || '';
+            }
+
+            // --- NUEVO: Lógica para aplicaciones ---
+            const checkBoxesApps = document.querySelectorAll('input[name="responsable_aplicaciones[]"]');
+            const textoOtrosAppInput = document.getElementById('responsable_aplicaciones_otros_texto');
+            const checkOtrosAppInput = document.getElementById('app_Otros');
+            
+            // Desmarcar todos primero
+            checkBoxesApps.forEach(cb => cb.checked = false);
+            if (checkOtrosAppInput) checkOtrosAppInput.dispatchEvent(new Event('change')); // Para ocultar el texto si estaba visible
+            textoOtrosAppInput.value = '';
+
+
+            if (data.encontrado && data.aplicaciones_usadas && data.aplicaciones_usadas.trim() !== '') {
+                divInfoAplicaciones.innerHTML = `📝 <strong>Nota:</strong> Este responsable ya tiene aplicaciones seleccionadas: <br><strong>${data.aplicaciones_usadas}</strong>.<br>Puedes actualizarlas a continuación. Si no seleccionas ninguna, se conservarán las actuales.`;
+                divInfoAplicaciones.style.display = 'block';
+
+                // Pre-seleccionar los checkboxes basados en data.aplicaciones_usadas
+                const appsGuardadas = data.aplicaciones_usadas.split(',').map(app => app.trim());
+                checkBoxesApps.forEach(cb => {
+                    if (appsGuardadas.includes(cb.value)) {
+                        cb.checked = true;
+                    }
+                    // Manejar el caso de "Otros: texto"
+                    const otrosMatch = appsGuardadas.find(app => app.startsWith('Otros: '));
+                    if (otrosMatch && cb.value === 'Otros') {
+                        cb.checked = true;
+                        textoOtrosAppInput.value = otrosMatch.substring('Otros: '.length);
+                        textoOtrosAppInput.style.display = 'block';
+                        textoOtrosAppInput.setAttribute('required', 'true');
+                    }
+                });
+            } else if (data.encontrado) {
+                divInfoAplicaciones.textContent = 'Este responsable aún no tiene aplicaciones frecuentes registradas. Selecciónalas a continuación.';
+                divInfoAplicaciones.style.display = 'block';
+            } else {
+                divInfoAplicaciones.style.display = 'none'; // Ocultar si el usuario no fue encontrado
+            }
+        });
+    } else {
+        // Si la cédula se borra, ocultar el mensaje y desmarcar todo
+        divInfoAplicaciones.style.display = 'none';
+        const checkBoxesApps = document.querySelectorAll('input[name="responsable_aplicaciones[]"]');
+        checkBoxesApps.forEach(cb => cb.checked = false);
+        const checkOtrosAppInput = document.getElementById('app_Otros');
+        if (checkOtrosAppInput) checkOtrosAppInput.dispatchEvent(new Event('change')); // Para ocultar el texto si estaba visible
+    }
+});
 
 
 </script>

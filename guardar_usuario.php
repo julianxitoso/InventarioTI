@@ -1,119 +1,98 @@
 <?php
 session_start();
-// require_once 'backend/auth_check.php'; // Se quitó para auto-registro público
-
+// Se necesitan ambos para verificar la sesión y conectar a la BD
+require_once 'backend/auth_check.php'; 
 require_once 'backend/db.php';
 
-if (isset($conn) && !isset($conexion)) { $conexion = $conn; }
-if (!isset($conexion) || !$conexion) {
-    $_SESSION['error_creacion_usuario'] = "Error crítico: No se pudo establecer la conexión a la base de datos.";
-    header('Location: registrar_usuario.php'); 
+// Redirigir si no es una petición POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: index.php'); 
     exit;
 }
-$conexion->set_charset("utf8mb4");
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $cedula_ingresada_form = trim($_POST['cedula'] ?? ''); 
-    $nombre_completo = trim($_POST['nombre_completo'] ?? '');
-    $contrasena = $_POST['contrasena'] ?? '';
-    $confirmar_contrasena = $_POST['confirmar_contrasena'] ?? '';
-    $cargo = trim($_POST['cargo'] ?? '');
-    $empresa_usuario = trim($_POST['empresa_usuario'] ?? '');
-    $regional_usuario = trim($_POST['regional_usuario'] ?? '');
-    
-    $rol_usuario = 'registrador'; 
+if (isset($conn) && !isset($conexion)) {
+    $conexion = $conn;
+}
 
-    // Validaciones (sin cambios)
-    if (empty($cedula_ingresada_form) || empty($nombre_completo) || empty($contrasena) || empty($cargo) || empty($empresa_usuario) || empty($regional_usuario)) {
-        $_SESSION['error_creacion_usuario'] = "Todos los campos marcados con * son obligatorios.";
-        header('Location: registrar_usuario.php');
-        exit;
-    }
-    if (!ctype_digit($cedula_ingresada_form)) {
-        $_SESSION['error_creacion_usuario'] = "La cédula solo debe contener números.";
-        header('Location: registrar_usuario.php');
-        exit;
-    }
-    if ($contrasena !== $confirmar_contrasena) {
-        $_SESSION['error_creacion_usuario'] = "Las contraseñas no coinciden.";
-        header('Location: registrar_usuario.php');
-        exit;
-    }
-     if (strlen($contrasena) < 6) { 
-        $_SESSION['error_creacion_usuario'] = "La contraseña debe tener al menos 6 caracteres.";
-        header('Location: registrar_usuario.php');
-        exit;
-    }
+// --- 1. CAPTURAR DATOS DEL FORMULARIO ---
+$cedula = trim($_POST['cedula'] ?? '');
+$nombre_completo = trim($_POST['nombre_completo'] ?? '');
+$contrasena = $_POST['contrasena'] ?? '';
+$confirmar_contrasena = $_POST['confirmar_contrasena'] ?? '';
+$cargo = trim($_POST['cargo'] ?? '');
+$empresa = $_POST['empresa_usuario'] ?? '';
+$regional = $_POST['regional_usuario'] ?? '';
+$rol_desde_formulario = $_POST['rol_usuario'] ?? 'registrador'; // Rol enviado desde el form
 
-    // Verificar si el usuario (cédula) ya existe en la columna 'usuario'
-    $stmt_check = $conexion->prepare("SELECT id FROM usuarios WHERE usuario = ?");
-    if(!$stmt_check){
-        error_log("Error preparando consulta de verificación de usuario: " . $conexion->error);
-        $_SESSION['error_creacion_usuario'] = "Error del sistema al verificar el usuario. Intente más tarde.";
-        header('Location: registrar_usuario.php');
-        exit;
-    }
-    $stmt_check->bind_param("s", $cedula_ingresada_form);
-    $stmt_check->execute();
-    $stmt_check->store_result();
-    if ($stmt_check->num_rows > 0) {
-        $_SESSION['error_creacion_usuario'] = "La cédula ingresada ya está registrada como usuario. Intenta iniciar sesión.";
-        $stmt_check->close();
-        header('Location: registrar_usuario.php');
-        exit;
-    }
+// --- 2. VALIDACIONES ---
+// (Usaremos una variable de sesión genérica para los errores para que funcione en ambas páginas)
+if (empty($cedula) || empty($nombre_completo) || empty($contrasena) || empty($cargo) || empty($empresa) || empty($regional)) {
+    $_SESSION['error_form_usuario'] = "Todos los campos marcados con * son obligatorios.";
+    header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'registro.php'));
+    exit;
+}
+if ($contrasena !== $confirmar_contrasena) {
+    $_SESSION['error_form_usuario'] = "Las contraseñas no coinciden.";
+    header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'registro.php'));
+    exit;
+}
+if (strlen($contrasena) < 6) { 
+    $_SESSION['error_form_usuario'] = "La contraseña debe tener al menos 6 caracteres.";
+    header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'registro.php'));
+    exit;
+}
+
+// --- 3. LÓGICA DE ASIGNACIÓN DE ROL (La parte más importante) ---
+$rol_final_asignado = 'registrador'; // Por defecto, el rol más bajo y seguro.
+
+// Verificamos si hay un usuario logueado Y si ese usuario es 'admin'
+if (isset($_SESSION['usuario_login']) && obtener_rol_usuario() === 'admin') {
+    // Si es un admin, SÍ confiamos en el rol que viene del formulario.
+    $rol_final_asignado = $rol_desde_formulario;
+}
+// Si no es un admin quien envía el formulario, el rol se queda como 'registrador',
+// ignorando cualquier intento de enviar un rol diferente desde el formulario público.
+
+// --- 4. PROCESAMIENTO EN BASE DE DATOS ---
+// Verificar si el usuario ya existe
+$stmt_check = $conexion->prepare("SELECT id FROM usuarios WHERE usuario = ?");
+$stmt_check->bind_param('s', $cedula);
+$stmt_check->execute();
+$stmt_check->store_result();
+
+if ($stmt_check->num_rows > 0) {
+    $_SESSION['error_form_usuario'] = "El usuario (cédula) '" . htmlspecialchars($cedula) . "' ya existe. Intente iniciar sesión o use otra cédula.";
     $stmt_check->close();
-
-    // La variable $password_hash_para_guardar contiene la contraseña hasheada
-    $password_hash_para_guardar = password_hash($contrasena, PASSWORD_DEFAULT); 
-    if ($password_hash_para_guardar === false) {
-        error_log("Error al generar el hash de la contraseña.");
-        $_SESSION['error_creacion_usuario'] = "Error crítico de seguridad al procesar la contraseña. Contacte al administrador.";
-        header('Location: registrar_usuario.php');
-        exit;
-    }
-
-    // ----- AQUÍ LA CORRECCIÓN PRINCIPAL -----
-    // Usar 'clave' como nombre de columna en la consulta INSERT
-    $sql = "INSERT INTO usuarios (usuario, clave, nombre_completo, cargo, empresa, regional, rol, activo) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)"; 
-    // ----- FIN CORRECCIÓN PRINCIPAL -----
-    
-    $stmt_insert = $conexion->prepare($sql);
-    if(!$stmt_insert){
-        error_log("Error preparando consulta de inserción de usuario: " . $conexion->error . " SQL: " . $sql);
-        $_SESSION['error_creacion_usuario'] = "Error del sistema al crear el usuario. Intente más tarde.";
-        header('Location: registrar_usuario.php');
-        exit;
-    }
-
-    // El orden de las variables en bind_param coincide con los '?' en el SQL
-    // La variable $password_hash_para_guardar se insertará en la columna 'clave'
-    $stmt_insert->bind_param("sssssss", 
-        $cedula_ingresada_form,         // para la columna 'usuario'
-        $password_hash_para_guardar,    // para la columna 'clave'
-        $nombre_completo, 
-        $cargo, 
-        $empresa_usuario, 
-        $regional_usuario, 
-        $rol_usuario
-    );
-
-    if ($stmt_insert->execute()) {
-        $_SESSION['mensaje_creacion_usuario'] = "¡Registro exitoso! Tu cuenta como 'Registrador' ha sido creada para la cédula ".htmlspecialchars($cedula_ingresada_form).". Ahora puedes iniciar sesión.";
-    } else {
-        error_log("Error al ejecutar inserción de usuario: " . $stmt_insert->error);
-        $_SESSION['error_creacion_usuario'] = "Error al guardar el usuario: " . $stmt_insert->error;
-    }
-    $stmt_insert->close();
-    $conexion->close();
-
-    header('Location: registrar_usuario.php'); 
-    exit;
-
-} else {
-    $_SESSION['error_creacion_usuario'] = "Acceso no permitido por método incorrecto.";
-    header('Location: registrar_usuario.php');
+    header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'registro.php'));
     exit;
 }
+$stmt_check->close();
+
+// Insertar el nuevo usuario si no existe
+$contrasena_hashed = password_hash($contrasena, PASSWORD_DEFAULT);
+$sql_insert = "INSERT INTO usuarios (usuario, clave, nombre_completo, cargo, empresa, regional, rol, activo) VALUES (?, ?, ?, ?, ?, ?, ?, 1)";
+$stmt_insert = $conexion->prepare($sql_insert);
+$stmt_insert->bind_param('sssssss', $cedula, $contrasena_hashed, $nombre_completo, $cargo, $empresa, $regional, $rol_final_asignado);
+
+// --- 5. REDIRECCIÓN INTELIGENTE ---
+if ($stmt_insert->execute()) {
+    // Si la creación fue exitosa, decidimos a dónde redirigir.
+    if (obtener_rol_usuario() === 'admin') {
+        // Si un admin lo creó, lo dejamos en la página de creación con un mensaje de éxito.
+        $_SESSION['mensaje_creacion_usuario'] = "¡Usuario '" . htmlspecialchars($nombre_completo) . "' creado con el rol de '" . htmlspecialchars($rol_final_asignado) . "'!";
+        header("Location: crear_usuario.php");
+    } else {
+        // Si fue un registro público, lo enviamos a la página de login con un mensaje de éxito.
+        $_SESSION['mensaje_login'] = "¡Registro exitoso! Ya puedes iniciar sesión con tu cédula y contraseña.";
+        header("Location: login.php");
+    }
+} else {
+    // Si falló, lo devolvemos a la página anterior con un error.
+    $_SESSION['error_form_usuario'] = "Error al guardar el usuario: " . $stmt_insert->error;
+    header('Location: ' . ($_SERVER['HTTP_REFERER'] ?? 'registro.php'));
+}
+
+$stmt_insert->close();
+$conexion->close();
+exit;
 ?>
