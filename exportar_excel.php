@@ -35,14 +35,19 @@ $columnas_base_activo = [
     'Offimática' => 'offimatica', 'Antivirus' => 'antivirus', 'Estado' => 'estado',
     'Valor Aprox.' => 'valor_aproximado', 'Regional Activo' => 'regional',
     'Detalles' => 'detalles', 'Fecha Registro' => 'fecha_registro',
-    'Empresa' => 'Empresa', 'Código Inv.' => 'Codigo_Inv' // Nuevos campos de tu SQL
+    'Empresa' => 'Empresa', 'Código Inv.' => 'Codigo_Inv',
+    'Aplicaciones Usadas' => 'aplicaciones_usadas' // Nuevos campos de tu SQL
 ];
 
 
 switch ($tipo_informe) {
     case 'general':
         $filename = "Informe_General_Activos_" . date('Ymd') . ".xls";
-        $query = "SELECT * FROM activos_tecnologicos WHERE estado != 'Dado de Baja' ORDER BY nombre ASC, cedula ASC, id ASC"; // Orden por nombre del responsable
+        $query = "SELECT     activos_tecnologicos.*, usuarios.aplicaciones_usadas 
+        FROM activos_tecnologicos 
+        LEFT JOIN usuarios ON activos_tecnologicos.cedula = usuarios.usuario
+        WHERE estado != 'Dado de Baja' 
+        ORDER BY nombre ASC, cedula ASC, id ASC"; // Orden por nombre del responsable
         $column_headers = array_keys($columnas_base_activo);
         $data_keys = array_values($columnas_base_activo);
         break;

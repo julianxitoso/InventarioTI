@@ -83,8 +83,10 @@ if ($tipo_informe_seleccionado !== 'seleccione') {
             $query = "SELECT activos_tecnologicos.*, 
                              activos_tecnologicos.nombre as nombre_responsable_directo, 
                              activos_tecnologicos.cedula as cedula_responsable_directo,
-                             activos_tecnologicos.cargo as cargo_responsable_directo
+                             activos_tecnologicos.cargo as cargo_responsable_directo,
+                             usuarios.aplicaciones_usadas
                       FROM activos_tecnologicos 
+                      LEFT JOIN usuarios ON activos_tecnologicos.cedula = usuarios.usuario
                       WHERE estado != 'Dado de Baja'
                       ORDER BY Empresa ASC, cedula_responsable_directo ASC, nombre_responsable_directo ASC, id ASC";
             $resultado_query = mysqli_query($conexion, $query);
@@ -213,7 +215,7 @@ if(isset($conexion)) { mysqli_close($conexion); } // Cerrar conexión después d
 <div class="top-bar-custom">
     <div class="logo-container-top">
         <a href="menu.php" title="Ir a Inicio">
-            <img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS">
+            <img src="imagenes/logo3.png" alt="Logo ARPESOD ASOCIADOS SAS">
         </a>
     </div>
     <div class="d-flex align-items-center">
