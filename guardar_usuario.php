@@ -80,7 +80,7 @@ if ($stmt_insert->execute()) {
     if (obtener_rol_usuario() === 'admin') {
         // Si un admin lo creó, lo dejamos en la página de creación con un mensaje de éxito.
         $_SESSION['mensaje_creacion_usuario'] = "¡Usuario '" . htmlspecialchars($nombre_completo) . "' creado con el rol de '" . htmlspecialchars($rol_final_asignado) . "'!";
-        header("Location: crear_usuario.php");
+        header("Location: registrar_usuario.php");
     } else {
         // Si fue un registro público, lo enviamos a la página de login con un mensaje de éxito.
         $_SESSION['mensaje_login'] = "¡Registro exitoso! Ya puedes iniciar sesión con tu cédula y contraseña.";

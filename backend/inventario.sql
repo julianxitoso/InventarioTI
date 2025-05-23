@@ -171,9 +171,6 @@
     ADD CONSTRAINT `historial_activos_ibfk_1` FOREIGN KEY (`id_activo`) REFERENCES `activos_tecnologicos` (`id`) ON DELETE CASCADE;
   COMMIT;
 
-  ALTER TABLE `activos_tecnologicos` 
-  DROP COLUMN `aplicaciones_usadas`;
-
   ALTER TABLE `usuarios` 
 ADD `aplicaciones_usadas` VARCHAR(255) NULL DEFAULT NULL 
 COMMENT 'Aplicaciones que más usa el usuario, separadas por comas' 
