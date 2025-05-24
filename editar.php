@@ -207,90 +207,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } elseif (isset($_POST['action']) && $_POST['action'] === 'confirmar_traslado_masivo') {
-    
+
         header('Content-Type: application/json');
         $response = ['success' => false, 'message' => 'Error desconocido durante el traslado.'];
-    
+
         if (!tiene_permiso_para('trasladar_activo')) {
             $response['message'] = 'Acción no permitida para su rol.';
             echo json_encode($response);
             exit;
         }
-    
+
         // --- Capturar y validar todos los datos del POST ---
         $cedula_origen = $_POST['cedula_usuario_origen_hidden'] ?? '';
         $ids_activos_str = $_POST['ids_activos_seleccionados_traslado'] ?? '';
-        
+
         $nueva_cedula = $_POST['nueva_cedula_traslado'] ?? '';
         $nuevo_nombre = $_POST['nuevo_nombre_traslado'] ?? '';
         $nuevo_cargo = $_POST['nuevo_cargo_traslado'] ?? '';
         $nueva_regional = $_POST['nueva_regional_traslado'] ?? '';
         $nueva_empresa = $_POST['nueva_empresa_traslado'] ?? ''; // <<< Capturar la nueva empresa
-    
+
         // Validar que los datos no estén vacíos
         if (empty($ids_activos_str) || empty($nueva_cedula) || empty($nuevo_nombre) || empty($nuevo_cargo) || empty($nueva_regional) || empty($nueva_empresa)) {
             $response['message'] = 'Error: Faltan datos para realizar el traslado. Verifique que todos los campos del nuevo responsable estén completos.';
             echo json_encode($response);
             exit;
         }
-    
+
         // --- Lógica de la Base de Datos ---
         $conexion->begin_transaction(); // Iniciar transacción para seguridad
-    
+
         try {
             $ids_array = explode(',', $ids_activos_str);
             $ids_array = array_filter($ids_array, 'is_numeric'); // Asegurarse que solo sean números
-    
+
             if (empty($ids_array)) {
                 throw new Exception("No se seleccionaron activos válidos para el traslado.");
             }
-    
+
             // Preparar placeholders para la cláusula IN (...)
             $placeholders = implode(',', array_fill(0, count($ids_array), '?'));
-            
+
             // ***** LA CORRECCIÓN CLAVE ESTÁ AQUÍ *****
             // 1. Se añade "Empresa = ?" a la consulta SQL. Tu columna se llama 'Empresa' con mayúscula.
             $sql_update = "UPDATE activos_tecnologicos SET cedula = ?, nombre = ?, cargo = ?, regional = ?, Empresa = ? WHERE id IN ($placeholders)";
-            
+
             $stmt_update = $conexion->prepare($sql_update);
             if (!$stmt_update) {
                 throw new Exception("Error al preparar la actualización: " . $conexion->error);
             }
-    
+
             // 2. Se añade 's' para la empresa y la variable $nueva_empresa al bind_param
             $types = 'sssss' . str_repeat('i', count($ids_array));
             $params = array_merge([$nueva_cedula, $nuevo_nombre, $nuevo_cargo, $nueva_regional, $nueva_empresa], $ids_array);
-            
+
             $stmt_update->bind_param($types, ...$params);
-    
+
             if (!$stmt_update->execute()) {
                 throw new Exception("Error al ejecutar el traslado: " . $stmt_update->error);
             }
-    
+
             // --- Registrar en el historial para cada activo ---
             // (Esta parte es opcional pero muy recomendada)
-            foreach($ids_array as $id_activo) {
+            foreach ($ids_array as $id_activo) {
                 $desc_historial = "Activo trasladado al responsable: " . htmlspecialchars($nuevo_nombre) . " (C.C: " . htmlspecialchars($nueva_cedula) . ", Empresa: " . htmlspecialchars($nueva_empresa) . ")";
                 registrar_evento_historial($conexion, $id_activo, HISTORIAL_TIPO_TRASLADO, $desc_historial, $_SESSION['usuario_login'] ?? 'Sistema', null, ['destino_cedula' => $nueva_cedula, 'destino_nombre' => $nuevo_nombre, 'destino_empresa' => $nueva_empresa]);
             }
-    
+
             $conexion->commit(); // Confirmar los cambios si todo fue exitoso
             $stmt_update->close();
-    
+
             $response['success'] = true;
             $response['message'] = '¡Traslado completado exitosamente! ' . count($ids_array) . ' activo(s) fueron reasignados.';
             // Aquí podrías añadir datos para generar el acta de traslado si lo deseas
             // $response['data_acta'] = [...];
-    
+
         } catch (Exception $e) {
             $conexion->rollback(); // Revertir los cambios en caso de error
             $response['message'] = $e->getMessage();
             error_log("Error en traslado masivo: " . $e->getMessage());
         }
-    
+
         echo json_encode($response);
         exit;
-
     } elseif (isset($_POST['submit_dar_baja'])) {
         // ... (código de dar baja sin cambios relevantes para el filtro de empresa en la recarga) ...
         if (!tiene_permiso_para('dar_baja_activo')) {
@@ -437,34 +436,47 @@ function textarea_editable($name, $label, $value, $form_id_suffix_func, $is_read
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        body { 
-            background-color: #ffffff !important; /* Fondo del body blanco */
+        body {
+            background-color: #ffffff !important;
+            /* Fondo del body blanco */
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-top: 80px; /* Espacio para la barra superior fija */
+            padding-top: 80px;
+            /* Espacio para la barra superior fija */
         }
+
         .top-bar-custom {
-            position: fixed; /* Fija la barra en la parte superior */
+            position: fixed;
+            /* Fija la barra en la parte superior */
             top: 0;
             left: 0;
             right: 0;
-            z-index: 1030; /* Asegura que esté por encima de otros elementos */
+            z-index: 1030;
+            /* Asegura que esté por encima de otros elementos */
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.5rem 1.5rem; /* Ajusta el padding según necesites */
-            background-color: #f8f9fa; /* Un color de fondo claro para la barra */
+            padding: 0.5rem 1.5rem;
+            /* Ajusta el padding según necesites */
+            background-color: #f8f9fa;
+            /* Un color de fondo claro para la barra */
             border-bottom: 1px solid #dee2e6;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
+
         .logo-container-top img {
-            width: auto; /* Ancho automático */
-            height: 75px; /* Altura fija para el logo en la barra */
+            width: auto;
+            /* Ancho automático */
+            height: 75px;
+            /* Altura fija para el logo en la barra */
             object-fit: contain;
-            margin-right: 15px; /* Espacio a la derecha del logo */
+            margin-right: 15px;
+            /* Espacio a la derecha del logo */
         }
+
         .user-info-top {
             font-size: 0.9rem;
         }
+
         .btn-custom-search {
             background-color: #191970;
             color: white;
@@ -606,7 +618,7 @@ function textarea_editable($name, $label, $value, $form_id_suffix_func, $is_read
 </head>
 
 <body>
-<div class="top-bar-custom">
+    <div class="top-bar-custom">
         <div class="logo-container-top">
             <a href="menu.php" title="Ir a Inicio">
                 <img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS">
@@ -614,7 +626,7 @@ function textarea_editable($name, $label, $value, $form_id_suffix_func, $is_read
         </div>
         <div class="d-flex align-items-center">
             <span class="text-dark me-3 user-info-top">
-                <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?> 
+                <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?>
                 (<?= htmlspecialchars(ucfirst($rol_usuario_actual_sesion)) ?>)
             </span>
             <form action="logout.php" method="post" class="d-flex">
@@ -897,6 +909,30 @@ function textarea_editable($name, $label, $value, $form_id_suffix_func, $is_read
     <?php endif; ?>
 
     <script>
+
+        let infoModalInstance;
+        
+        function mostrarInfoModal(titulo, mensaje) {
+            const modalElement = document.getElementById('infoModal');
+            const modalTitleElement = document.getElementById('infoModalTitle');
+            const modalMessageElement = document.getElementById('infoModalMessage');
+
+            if (!infoModalInstance && modalElement) {
+                infoModalInstance = new bootstrap.Modal(modalElement);
+            }
+
+            if (modalTitleElement) {
+                modalTitleElement.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${titulo}`;
+            }
+            if (modalMessageElement) {
+                modalMessageElement.textContent = mensaje;
+            }
+
+            if (infoModalInstance) {
+                infoModalInstance.show();
+            } 
+        }
+
         function habilitarCamposActivo(formSuffix) {
             // ... (tu función habilitarCamposActivo sin cambios)
             const formId = 'form-activo-' + formSuffix;
@@ -1032,13 +1068,13 @@ function textarea_editable($name, $label, $value, $form_id_suffix_func, $is_read
                         const nEmp = document.getElementById('nueva_empresa_traslado').value; // <<< Obtener nueva empresa
 
                         if (!nCed || !nNom || !nCar || !nReg || !nEmp) {
-                            alert('Datos del nuevo responsable o empresa incompletos.');
+                            mostrarInfoModal('Completa los campos','Datos del nuevo responsable o empresa incompletos.');
                             return;
                         } // <<< Añadir nEmp a la validación
 
                         const chkSel = document.getElementById('user-group-' + cedulaOrigenActualParaModal).querySelectorAll('.checkbox-transfer:checked');
                         if (chkSel.length === 0) {
-                            alert('No ha seleccionado activos.');
+                            mostrarInfoModal('Completa los campos','No ha seleccionado activos.');
                             bsTrasladoModal.hide();
                             return;
                         }
@@ -1077,7 +1113,7 @@ function textarea_editable($name, $label, $value, $form_id_suffix_func, $is_read
                             }
                         }).catch(e => {
                             console.error('Error:', e);
-                            alert('Error procesando traslado.');
+                            mostrarInfoModal('Error','Error procesando traslado.');
                         });
                     });
                 }

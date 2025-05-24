@@ -180,15 +180,15 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
                 </a>
             </div>
             <?php endif; ?>
-            
-            <?php if (es_admin()): ?>
-             <div class="col">
-                 <a href="registrar_usuario.php" class="card-link">
+
+            <?php if (tiene_permiso_para('gestionar_usuarios')): ?>
+            <div class="col">
+                 <a href="gestionar_usuarios.php" class="card-link">
                 <div class="card menu-card h-100">
                     <div class="card-body">
-                        <i class="bi bi-person-plus-fill text-danger"></i>
-                        <h5 class="card-title">Crear Usuario</h5>
-                        <p class="card-text text-muted">Registrar nuevos usuarios (rol Registrador).</p>
+                        <i class="bi bi-person text-warning"></i>
+                        <h5 class="card-title">Roles</h5>
+                        <p class="card-text text-muted">Gestionar usuarios, roles, activar o desactivar.</p>
                     </div>
                 </div>
                 </a>

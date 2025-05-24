@@ -69,6 +69,44 @@ unset($_SESSION['error_global']);
         .user-info-top {
             font-size: 0.9rem;
         }
+
+        #btnGuardarTodo{
+            background-color: #191970;
+            border-color: #191970;
+        }
+
+        #btnAgregarActivoTabla{
+            background-color: #191970;
+            border-color: #191970;
+        }
+        
+        .btn-principal, /* Clase genérica para botones con tu color principal */
+        #btnGuardarTodo,
+        #btnAgregarActivoTabla { /* Aplicado directamente a los IDs de tus botones */
+            background-color: #191970;
+            border-color: #191970;
+            color: #ffffff; /* Asegura que el texto sea blanco */
+        }
+        .btn-principal:hover,
+        #btnGuardarTodo:hover,
+        #btnAgregarActivoTabla:hover {
+            background-color: #111150; /* Un poco más oscuro para hover */
+            border-color: #111150;
+            color: #ffffff;
+        }
+        
+        /* <<< --- CSS PARA EL MODAL DE INFORMACIÓN --- >>> */
+        #infoModal .modal-header {
+            background-color: #191970; /* Tu color principal */
+            color: #ffffff; /* Texto blanco para contraste */
+        }
+        #infoModal .modal-header .btn-close {
+            filter: invert(1) grayscale(100%) brightness(200%); /* Botón de cierre blanco */
+        }
+        #infoModal .modal-title i { /* Para el ícono en el título del modal */
+            margin-right: 8px;
+        }
+
         .card.form-card { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: none; }
         .form-label { font-weight: 500; color: #495057; }
         .form-section { border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px; margin-bottom: 20px; background-color: #fff; }
@@ -118,7 +156,7 @@ unset($_SESSION['error_global']);
 
     <form action="guardar_activo.php" method="post" id="formRegistrarLoteActivos">
         <div class="form-section" id="seccionResponsable">
-            <h5 class="mb-3 text-primary">1. Información del Responsable</h5>
+            <h5 class="mb-3">1. Información del Responsable</h5>
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label for="cedula" class="form-label">Cédula <span class="text-danger">*</span></label>
@@ -173,7 +211,7 @@ unset($_SESSION['error_global']);
         </div>
 
         <div class="form-section" id="seccionAgregarActivo" style="display: none;">
-            <h5 class="mb-3 text-primary">2. Agregar Activo para <strong id="nombreResponsableDisplay"></strong></h5>
+            <h5 class="mb-3">2. Agregar Activo para <strong id="nombreResponsableDisplay"></strong></h5>
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label for="tipo_activo" class="form-label">Tipo de Activo <span class="text-danger">*</span></label>
@@ -241,7 +279,7 @@ unset($_SESSION['error_global']);
         </div>
 
         <div class="form-section mt-4" id="seccionTablaActivos" style="display: none;">
-            <h5 class="mb-3 text-primary">3. Activos para Registrar a <strong id="nombreResponsableTabla"></strong></h5>
+            <h5 class="mb-3">3. Activos para Registrar a <strong id="nombreResponsableTabla"></strong></h5>
             <div class="table-responsive">
                 <table class="table table-sm table-bordered table-hover table-activos-agregados">
                     <thead>
@@ -261,12 +299,29 @@ unset($_SESSION['error_global']);
         </div>
     </form>
 </div>
-
+<div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header"> 
+            <h5 class="modal-title" id="infoModalTitle"><i class="bi bi-exclamation-triangle-fill"></i> Atención</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p id="infoModalMessage"></p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
 <script>
 
     // Array para almacenar los activos agregados temporalmente
     let activosParaGuardar = [];
     let responsableConfirmado = false;
+    let infoModalInstance;
 
     const formPrincipal = document.getElementById('formRegistrarLoteActivos');
     const seccionResponsable = document.getElementById('seccionResponsable');
@@ -290,6 +345,27 @@ unset($_SESSION['error_global']);
 
     const checkOtrosApp = document.getElementById('app_Otros');
     const textoOtrosApp = document.getElementById('responsable_aplicaciones_otros_texto');
+
+    function mostrarInfoModal(titulo, mensaje) {
+        const modalElement = document.getElementById('infoModal');
+        const modalTitleElement = document.getElementById('infoModalTitle'); 
+        const modalMessageElement = document.getElementById('infoModalMessage'); 
+
+        if (!infoModalInstance && modalElement) {
+            infoModalInstance = new bootstrap.Modal(modalElement);
+        }
+
+        if (modalTitleElement) { 
+             modalTitleElement.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${titulo}`;
+        }
+        if (modalMessageElement) {
+            modalMessageElement.textContent = mensaje;
+        }
+        
+        if (infoModalInstance) {
+            infoModalInstance.show();
+        }
+    }
 
     if (checkOtrosApp) {
         checkOtrosApp.addEventListener('change', function() {
@@ -343,7 +419,7 @@ unset($_SESSION['error_global']);
                 });
             }
         } else {
-            alert('Por favor, complete todos los campos de información del responsable.');
+            mostrarInfoModal('Campos incompletos','Por favor, complete todos los campos de información del responsable.');
         }
     });
     
@@ -354,7 +430,7 @@ unset($_SESSION['error_global']);
 
     btnAgregarActivoTabla.addEventListener('click', function() {
         if (!responsableConfirmado) {
-            alert("Primero debe confirmar los datos del responsable.");
+            mostrarInfoModal('Completa los campos','Primero debe confirmar los datos del responsable.');
             return;
         }
         const activo = {};
@@ -380,12 +456,12 @@ unset($_SESSION['error_global']);
 
         // Validación básica de campos de activo
         if (!activo.tipo_activo || !activo.marca || !activo.serie || !activo.estado || !activo.valor_aproximado) {
-            alert('Complete los campos obligatorios del activo: Tipo, Marca, Serie, Estado, Valor.');
+            mostrarInfoModal('Completa los campos','Complete los campos obligatorios del activo: Tipo, Marca, Serie, Estado, Valor.');
             activoValido = false;
         }
         // Validar que valor aproximado sea número
         if(isNaN(parseFloat(activo.valor_aproximado)) && activo.valor_aproximado !== '') {
-            alert('El valor aproximado debe ser un número.');
+            mostrarInfoModal('Formato incorrecto','El valor aproximado debe ser un número.');
             activoValido = false;
         }
 
@@ -452,12 +528,12 @@ unset($_SESSION['error_global']);
 
     function eliminarActivoDeLista(index) {
         activosParaGuardar.splice(index, 1);
-        actualizarTablaActivos();
+        actualizarTablaActivos();               
     }
 
     formPrincipal.addEventListener('submit', function(event) {
         if (activosParaGuardar.length === 0 || !responsableConfirmado) {
-            alert('Debe confirmar un responsable y agregar al menos un activo a la lista antes de guardar.');
+            mostrarInfoModal('Completa los campos','Debe confirmar un responsable y agregar al menos un activo a la lista antes de guardar.');
             event.preventDefault(); // Detener el envío del formulario
             return false;
         }
