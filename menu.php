@@ -1,14 +1,11 @@
 <?php
-session_start(); 
-require_once 'backend/auth_check.php'; // Este archivo DEBE definir tiene_permiso_para() y es_admin() correctamente
+session_start();
+require_once 'backend/auth_check.php'; // Este archivo DEBE definir tiene_permiso_para()
 
 // Definir variables para mostrar nombre y rol del usuario
 $nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
 $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
-// Lógica para restringir acceso si es necesario (auth_check.php ya lo hace, pero por si acaso)
-// verificar_sesion_activa(); // Esta función ya es llamada por restringir_acceso_pagina en otras páginas
-// Si menu.php es accesible por todos los usuarios logueados, no se necesita una restricción adicional aquí.
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -18,35 +15,34 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        body { 
-            background-color: #ffffff !important; /* Fondo del body blanco */
+        body {
+            background-color: #ffffff !important;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-top: 80px; /* Espacio para la barra superior fija */
+            padding-top: 80px;
         }
         .top-bar-custom {
-            position: fixed; /* Fija la barra en la parte superior */
+            position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            z-index: 1030; /* Asegura que esté por encima de otros elementos */
+            z-index: 1030;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.5rem 1.5rem; /* Ajusta el padding según necesites */
-            background-color: #f8f9fa; /* Un color de fondo claro para la barra */
+            padding: 0.5rem 1.5rem;
+            background-color: #f8f9fa;
             border-bottom: 1px solid #dee2e6;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         .logo-container-top img {
-            width: auto; /* Ancho automático */
-            height: 75px; /* Altura fija para el logo en la barra */
+            width: auto;
+            height: 75px;
             object-fit: contain;
-            margin-right: 15px; /* Espacio a la derecha del logo */
+            margin-right: 15px;
         }
         .user-info-top {
             font-size: 0.9rem;
         }
-        .welcome-message { font-size: 1.2rem; }
         .card-link { text-decoration: none; }
         .menu-card {
             transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
@@ -58,10 +54,10 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
             box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.1);
         }
         .menu-card .card-body { text-align: center; padding: 1.5rem; }
-        .menu-card i { 
-            font-size: 2.8rem; /* Iconos un poco más grandes */
-            margin-bottom: 0.75rem; 
-            display: block; /* Para centrar el ícono */
+        .menu-card i {
+            font-size: 2.8rem;
+            margin-bottom: 0.75rem;
+            display: block;
             margin-left: auto;
             margin-right: auto;
         }
@@ -71,10 +67,10 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
         }
         .menu-card .card-text {
             font-size: 0.85rem;
-            min-height: 50px; /* Para alinear tarjetas con diferente cantidad de texto */
+            min-height: 50px;
         }
         .page-header-title {
-             color: #191970; /* Color corporativo para el título */
+            color: #191970;
         }
     </style>
 </head>
@@ -87,7 +83,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
         </div>
         <div class="d-flex align-items-center">
             <span class="text-dark me-3 user-info-top">
-                <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?> 
+                <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?>
                 (<?= htmlspecialchars(ucfirst($rol_usuario_actual_sesion)) ?>)
             </span>
             <form action="logout.php" method="post" class="d-flex">
@@ -109,7 +105,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
             <h1 class="display-6 fw-normal page-header-title">Bienvenido al Sistema de Inventario</h1>
             <p class="fs-5 text-muted">Seleccione una opción para comenzar.</p>
         </div>
-        
+
         <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 justify-content-center">
             <?php if (tiene_permiso_para('crear_activo')): ?>
             <div class="col">
@@ -138,7 +134,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
                 </a>
             </div>
             <?php endif; ?>
-            
+
             <?php if (tiene_permiso_para('editar_activo_detalles') || tiene_permiso_para('trasladar_activo')): ?>
             <div class="col">
                  <a href="editar.php" class="card-link">
@@ -186,9 +182,9 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
                  <a href="gestionar_usuarios.php" class="card-link">
                 <div class="card menu-card h-100">
                     <div class="card-body">
-                        <i class="bi bi-person text-warning"></i>
-                        <h5 class="card-title">Roles</h5>
-                        <p class="card-text text-muted">Gestionar usuarios, roles, activar o desactivar.</p>
+                        <i class="bi bi-people-fill text-primary"></i>
+                        <h5 class="card-title">Gestionar Usuarios</h5>
+                        <p class="card-text text-muted">Administrar usuarios y sus roles de acceso.</p>
                     </div>
                 </div>
                 </a>
@@ -206,131 +202,28 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
                 </div>
                 </a>
             </div>
+            
+            <div class="col">
+                 <a href="depreciacion_activos.php" class="card-link">
+                <div class="card menu-card h-100">
+                    <div class="card-body">
+                        <i class="bi bi-graph-down text-dark"></i>
+                        <h5 class="card-title">Depreciación de Activos</h5>
+                        <p class="card-text text-muted">Calcular y consultar la depreciación de los activos.</p>
+                    </div>
+                </div>
+                </a>
+            </div>
 
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <div id="chatbot-button">
-    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" class="bi bi-chat-dots-fill" viewBox="0 0 16 16">
-        <path d="M16 8c0 3.866-3.582 7-8 7a9.06 9.06 0 0 1-2.347-.306c-.584.296-1.925.864-4.181 1.234-.2.032-.352-.176-.273-.362.354-.836.674-1.95.77-2.966C.744 11.37 0 9.76 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7zM5 8a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm4 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
-    </svg>
-</div>
-
-<div id="chatbot-container">
-    <div id="chatbot-header">
-        <span>Mi Chatbot</span>
-        <span id="chatbot-close-button">&times;</span>
-    </div>
-    <iframe id="chatbot-iframe" src="" frameborder="0"></iframe>
-</div>
-
-<style>
-    /* Estilo para el botón de chat */
-    #chatbot-button {
-        position: fixed;
-        bottom: 25px;
-        right: 25px;
-        width: 60px;
-        height: 60px;
-        background-color: #007bff; /* Puedes cambiar este color */
-        color: white;
-        border-radius: 50%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        cursor: pointer;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        z-index: 999;
-        transition: transform 0.2s;
-    }
-
-    #chatbot-button:hover {
-        transform: scale(1.1);
-    }
-
-    /* Contenedor de la ventana del chat, oculto por defecto */
-    #chatbot-container {
-        position: fixed;
-        bottom: 100px;
-        right: 25px;
-        width: 370px;
-        height: 70vh;
-        max-height: 500px;
-        background-color: white;
-        border-radius: 15px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-        display: none; /* Oculto por defecto */
-        flex-direction: column;
-        overflow: hidden;
-        z-index: 1000;
-    }
-
-    /* Cabecera de la ventana de chat */
-    #chatbot-header {
-        background-color: #007bff; /* Puedes cambiar este color */
-        color: white;
-        padding: 10px 15px;
-        font-weight: bold;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    #chatbot-close-button {
-        cursor: pointer;
-        font-size: 24px;
-        font-weight: bold;
-    }
-
-    /* Iframe donde se cargará tu chatbot */
-    #chatbot-iframe {
-        width: 100%;
-        height: 100%;
-        border: none;
-    }
-
-    /* Para que el chatbot se muestre */
-    #chatbot-container.visible {
-        display: flex;
-    }
-</style>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        
-        // --- CONFIGURACIÓN ---
-        // Pega la URL completa de tu chatbot aquí
-        const chatbotUrl = "https://asistenteaifront.onrender.com/"; 
-        // -------------------
-
-        const chatButton = document.getElementById('chatbot-button');
-        const chatbotContainer = document.getElementById('chatbot-container');
-        const chatbotIframe = document.getElementById('chatbot-iframe');
-        const closeButton = document.getElementById('chatbot-close-button');
-        let isChatbotLoaded = false;
-
-        // Función para abrir el chat
-        function openChat() {
-            // Carga la URL en el iframe solo la primera vez que se abre
-            if (!isChatbotLoaded) {
-                chatbotIframe.src = chatbotUrl;
-                isChatbotLoaded = true;
-            }
-            chatbotContainer.classList.add('visible');
-        }
-
-        // Función para cerrar el chat
-        function closeChat() {
-            chatbotContainer.classList.remove('visible');
-        }
-
-        // Asignar eventos a los botones
-        chatButton.addEventListener('click', openChat);
-        closeButton.addEventListener('click', closeChat);
-    });
-</script>
+    <div id="chatbot-button"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" class="bi bi-chat-dots-fill" viewBox="0 0 16 16"><path d="M16 8c0 3.866-3.582 7-8 7a9.06 9.06 0 0 1-2.347-.306c-.584.296-1.925.864-4.181 1.234-.2.032-.352-.176-.273-.362.354-.836.674-1.95.77-2.966C.744 11.37 0 9.76 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7zM5 8a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm4 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg></div>
+    <div id="chatbot-container"><div id="chatbot-header"><span>Mi Chatbot</span><span id="chatbot-close-button">&times;</span></div><iframe id="chatbot-iframe" src="" frameborder="0"></iframe></div>
+    <style>#chatbot-button{position:fixed;bottom:25px;right:25px;width:60px;height:60px;background-color:#007bff;color:white;border-radius:50%;display:flex;justify-content:center;align-items:center;cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,.2);z-index:999;transition:transform .2s}#chatbot-button:hover{transform:scale(1.1)}#chatbot-container{position:fixed;bottom:100px;right:25px;width:370px;height:70vh;max-height:500px;background-color:white;border-radius:15px;box-shadow:0 4px 12px rgba(0,0,0,.2);display:none;flex-direction:column;overflow:hidden;z-index:1000}#chatbot-header{background-color:#007bff;color:white;padding:10px 15px;font-weight:700;display:flex;justify-content:space-between;align-items:center}#chatbot-close-button{cursor:pointer;font-size:24px;font-weight:700}#chatbot-iframe{width:100%;height:100%;border:none}#chatbot-container.visible{display:flex}</style>
+    <script>document.addEventListener("DOMContentLoaded",function(){const e="https://asistenteaifront.onrender.com/",t=document.getElementById("chatbot-button"),o=document.getElementById("chatbot-container"),n=document.getElementById("chatbot-iframe"),c=document.getElementById("chatbot-close-button");let d=!1;function a(){d||(n.src=e,d=!0),o.classList.add("visible")}function i(){o.classList.remove("visible")}t.addEventListener("click",a),c.addEventListener("click",i)});</script>
 
 </body>
 </html>

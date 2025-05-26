@@ -11,7 +11,7 @@ $conexion->set_charset("utf8mb4");
 $nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
 $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
-// Tu PHP para definir $regionales, $empresas_disponibles, etc., no cambia.
+// Definición de opciones para los selects del formulario
 $regionales = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional'];
 $empresas_disponibles = ['Arpesod', 'Finansueños'];
 $opciones_tipo_activo = ['Computador', 'Monitor', 'Impresora', 'Escáner', 'DVR', 'Contadora Billetes', 'Contadora Monedas', 'Celular', 'Impresora Térmica', 'Combo Teclado y Mouse', 'Diadema', 'Adaptador Multipuertos / Red', 'Router', 'Otro'];
@@ -56,8 +56,8 @@ unset($_SESSION['error_global']);
         .star-rating input[type="radio"]:checked ~ label.star-label, .star-rating label.star-label:hover, .star-rating label.star-label:hover ~ label.star-label { color: #f5b301; }
         .star-rating input[type="radio"]:checked + label.star-label:hover, .star-rating input[type="radio"]:checked ~ label.star-label:hover, .star-rating input[type="radio"]:checked ~ label.star-label:hover ~ label.star-label, .star-rating label.star-label:hover ~ input[type="radio"]:checked ~ label.star-label { color: #f5b301; }
         .btn-remove-asset { font-size: 0.8em; padding: 0.2rem 0.5rem; }
-        /* --- AJUSTE/NUEVO --- Estilo para el mensaje de info de aplicaciones */
         #infoAplicacionesExistentes { font-size: 0.85em; }
+        input:read-only, select:disabled { background-color: #e9ecef; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -122,15 +122,39 @@ unset($_SESSION['error_global']);
         <div class="form-section" id="seccionAgregarActivo" style="display: none;">
              <h5 class="mb-3">2. Agregar Activo para <strong id="nombreResponsableDisplay"></strong></h5>
              <div class="row">
-                <div class="col-md-4 mb-3"><label for="tipo_activo" class="form-label">Tipo de Activo <span class="text-danger">*</span></label><select class="form-select" id="tipo_activo" name="activo_tipo_activo"><option value="">Seleccione...</option><?php foreach ($opciones_tipo_activo as $opcion): ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php endforeach; ?></select></div>
-                <div class="col-md-4 mb-3"><label for="marca" class="form-label">Marca <span class="text-danger">*</span></label><input type="text" class="form-control" id="marca" name="activo_marca"></div>
-                <div class="col-md-4 mb-3"><label for="serie" class="form-label">Serie / Serial <span class="text-danger">*</span></label><input type="text" class="form-control" id="serie" name="activo_serie"></div>
+                 <div class="col-md-4 mb-3"><label for="tipo_activo" class="form-label">Tipo de Activo <span class="text-danger">*</span></label><select class="form-select" id="tipo_activo" name="activo_tipo_activo" required><option value="">Seleccione...</option><?php foreach ($opciones_tipo_activo as $opcion): ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php endforeach; ?></select></div>
+                 <div class="col-md-4 mb-3"><label for="marca" class="form-label">Marca <span class="text-danger">*</span></label><input type="text" class="form-control" id="marca" name="activo_marca" required></div>
+                 <div class="col-md-4 mb-3"><label for="serie" class="form-label">Serie / Serial <span class="text-danger">*</span></label><input type="text" class="form-control" id="serie" name="activo_serie" required></div>
             </div>
             <div class="row">
-                <div class="col-md-4 mb-3"><label for="estado" class="form-label">Estado del Activo <span class="text-danger">*</span></label><select class="form-select" id="estado" name="activo_estado"><option value="Nuevo">Nuevo</option><?php foreach ($opciones_estado_general as $opcion): if($opcion !== 'Nuevo' && $opcion !== 'Dado de Baja') { ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php } endforeach; ?></select></div>
-                <div class="col-md-4 mb-3"><label for="valor_aproximado" class="form-label">Valor Aproximado <span class="text-danger">*</span></label><input type="number" class="form-control" id="valor_aproximado" name="activo_valor_aproximado" step="0.01" min="0"></div>
-                <div class="col-md-4 mb-3"><label for="codigo_inv" class="form-label">Código Inventario (Opcional)</label><input type="text" class="form-control" id="codigo_inv" name="activo_codigo_inv"></div>
+                 <div class="col-md-4 mb-3"><label for="estado" class="form-label">Estado del Activo <span class="text-danger">*</span></label><select class="form-select" id="estado" name="activo_estado" required><option value="Nuevo">Nuevo</option><?php foreach ($opciones_estado_general as $opcion): if($opcion !== 'Nuevo' && $opcion !== 'Dado de Baja') { ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php } endforeach; ?></select></div>
+                 <div class="col-md-4 mb-3"><label for="valor_aproximado" class="form-label">Valor del Activo (Compra) <span class="text-danger">*</span></label><input type="number" class="form-control" id="valor_aproximado" name="activo_valor_aproximado" step="0.01" min="0" required></div>
+                 <div class="col-md-4 mb-3"><label for="codigo_inv" class="form-label">Código Inventario (Opcional)</label><input type="text" class="form-control" id="codigo_inv" name="activo_codigo_inv"></div>
             </div>
+            
+            <hr class="my-3">
+            <h6 class="mb-3 text-primary">Información para Depreciación (Automático)</h6>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label for="fecha_compra" class="form-label">Fecha de Compra <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" id="fecha_compra" name="activo_fecha_compra" required>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label for="vida_util" class="form-label">Vida Útil (Años)</label>
+                    <input type="number" class="form-control" id="vida_util" name="activo_vida_util" readonly>
+                </div>
+                 <div class="col-md-3 mb-3">
+                    <label for="metodo_depreciacion" class="form-label">Método Depreciación</label>
+                    <select class="form-select" id="metodo_depreciacion" name="activo_metodo_depreciacion" disabled>
+                        <option value="Linea Recta" selected>Línea Recta</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label for="valor_residual" class="form-label">Valor Residual</label>
+                    <input type="number" class="form-control" id="valor_residual" name="activo_valor_residual" value="0" readonly>
+                </div>
+            </div>
+
             <div id="campos_computador_form_activo" style="display: none;">
                 <hr class="my-3"><h6 class="mb-3 text-muted">Detalles Específicos (si es Computador)</h6>
                 <div class="row">
@@ -153,22 +177,37 @@ unset($_SESSION['error_global']);
 
         <div class="form-section mt-4" id="seccionTablaActivos" style="display: none;">
             <h5 class="mb-3">3. Activos para Registrar a <strong id="nombreResponsableTabla"></strong></h5>
-            <div class="table-responsive"><table class="table table-sm table-bordered table-hover table-activos-agregados"><thead><tr><th>Tipo</th><th>Marca</th><th>Serie</th><th>Estado</th><th>Valor</th><th>Satisfacción</th><th>Acción</th></tr></thead><tbody id="tablaActivosBody"></tbody></table></div>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered table-hover table-activos-agregados">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Marca</th>
+                            <th>Serie</th>
+                            <th>F. Compra</th>
+                            <th>Valor</th>
+                            <th>Vida Útil</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaActivosBody"></tbody>
+                </table>
+            </div>
             <p id="noActivosMensaje" class="text-muted">Aún no se han agregado activos a la lista.</p>
         </div>
         
         <div class="mt-4 d-grid gap-2">
-            <button type="submit" class="btn btn-primary btn-lg" id="btnGuardarTodo" disabled><i class="bi bi-save"></i> Guardar Todos los Activos y Finalizar</button>
+            <button type="button" class="btn btn-primary btn-lg" id="btnGuardarTodo" disabled><i class="bi bi-save"></i> Guardar Todos los Activos y Finalizar</button>
         </div>
     </form>
 </div>
 <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="infoModalTitle"><i class="bi bi-exclamation-triangle-fill"></i> Atención</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p id="infoModalMessage"></p></div><div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button></div></div></div></div>
     
 <script>
+    // Todo el script hasta la función de envío permanece igual
     let activosParaGuardar = [];
-    let responsableConfirmado = false; // Indica si se ha pasado la validación inicial del responsable
+    let responsableConfirmado = false; 
     let infoModalInstance;
-
     const formPrincipal = document.getElementById('formRegistrarLoteActivos');
     const seccionResponsable = document.getElementById('seccionResponsable');
     const seccionAgregarActivo = document.getElementById('seccionAgregarActivo');
@@ -179,7 +218,6 @@ unset($_SESSION['error_global']);
     const btnGuardarTodo = document.getElementById('btnGuardarTodo');
     const tablaActivosBody = document.getElementById('tablaActivosBody');
     const noActivosMensaje = document.getElementById('noActivosMensaje');
-    
     const inputCedulaResponsable = document.getElementById('cedula');
     const camposPrincipalesResponsableIds = ['nombre', 'cargo', 'regional', 'empresa_responsable'];
     const divInfoAplicaciones = document.createElement('div');
@@ -188,16 +226,114 @@ unset($_SESSION['error_global']);
     divInfoAplicaciones.style.display = 'none';
     const contenedorCheckboxesApp = document.getElementById('contenedorCheckboxesAplicaciones');
      if (contenedorCheckboxesApp) {
-        contenedorCheckboxesApp.parentNode.insertBefore(divInfoAplicaciones, contenedorCheckboxesApp);
+         contenedorCheckboxesApp.parentNode.insertBefore(divInfoAplicaciones, contenedorCheckboxesApp);
+     }
+    const camposActivoIds = {
+        tipo_activo: 'tipo_activo', marca: 'marca', serie: 'serie', estado: 'estado',
+        valor_aproximado: 'valor_aproximado', codigo_inv: 'codigo_inv', detalles: 'detalles',
+        fecha_compra: 'fecha_compra',
+        vida_util: 'vida_util',
+        valor_residual: 'valor_residual',
+        metodo_depreciacion: 'metodo_depreciacion',
+        procesador: 'activo_procesador', ram: 'activo_ram', disco_duro: 'activo_disco_duro',
+        tipo_equipo: 'activo_tipo_equipo', red: 'activo_red', sistema_operativo: 'activo_so',
+        offimatica: 'activo_offimatica', antivirus: 'activo_antivirus',
+        satisfaccion_rating_name: 'activo_satisfaccion_rating'
+    };
+    const campoTipoActivo = document.getElementById('tipo_activo');
+    const campoVidaUtil = document.getElementById('vida_util');
+    const vidaUtilPorTipo = {
+        'Computador': 5, 'Monitor': 5, 'Impresora': 5, 'Escáner': 5, 'DVR': 5, 'Celular': 5,
+        'Impresora Térmica': 5, 'Combo Teclado y Mouse': 5, 'Diadema': 5, 'Adaptador Multipuertos / Red': 5,
+        'Router': 5, 'Contadora Billetes': 10, 'Contadora Monedas': 10, 'Otro': 5 
+    };
+    campoTipoActivo.addEventListener('change', function() {
+        const tipoSeleccionado = this.value;
+        campoVidaUtil.value = vidaUtilPorTipo[tipoSeleccionado] || '';
+        document.getElementById('campos_computador_form_activo').style.display = (this.value === 'Computador') ? 'block' : 'none';
+    });
+    btnAgregarActivoTabla.addEventListener('click', function() {
+        if (!responsableConfirmado) {
+            mostrarInfoModal('Confirme primero', 'Primero debe confirmar los datos del responsable.');
+            return;
+        }
+        const activo = {}; let activoValido = true; let camposActivoForm = {};
+        for (const key in camposActivoIds) {
+            const inputElement = document.getElementById(camposActivoIds[key]);
+            if (key === 'satisfaccion_rating_name') {
+                const ratingChecked = document.querySelector(`input[name="${camposActivoIds[key]}"]:checked`);
+                activo[key] = ratingChecked ? ratingChecked.value : null;
+            } else if (inputElement) {
+                activo[key] = inputElement.value.trim();
+                camposActivoForm[key] = inputElement;
+            } else {
+                activo[key] = '';
+            }
+        }
+        if (!activo.tipo_activo || !activo.marca || !activo.serie || !activo.estado || !activo.valor_aproximado || !activo.fecha_compra) {
+            mostrarInfoModal('Campos incompletos', 'Por favor, complete todos los campos marcados con asterisco (*).');
+            activoValido = false;
+        }
+        if (isNaN(parseFloat(activo.valor_aproximado)) && activo.valor_aproximado !== '') {
+            mostrarInfoModal('Formato incorrecto', 'El valor del activo debe ser un número.');
+            activoValido = false;
+        }
+        if (activoValido) {
+            activosParaGuardar.push(activo);
+            actualizarTablaActivos();
+            limpiarFormularioActivo(camposActivoForm);
+            campoTipoActivo.dispatchEvent(new Event('change'));
+        }
+    });
+    function actualizarTablaActivos() {
+        tablaActivosBody.innerHTML = '';
+        if (activosParaGuardar.length === 0) {
+            noActivosMensaje.style.display = 'block';
+            btnGuardarTodo.disabled = true;
+            return;
+        }
+        noActivosMensaje.style.display = 'none';
+        btnGuardarTodo.disabled = false;
+        activosParaGuardar.forEach((activo, index) => {
+            const fila = tablaActivosBody.insertRow();
+            fila.insertCell().textContent = activo.tipo_activo || 'N/A';
+            fila.insertCell().textContent = activo.marca || 'N/A';
+            fila.insertCell().textContent = activo.serie || 'N/A';
+            fila.insertCell().textContent = activo.fecha_compra || 'N/A';
+            fila.insertCell().textContent = activo.valor_aproximado ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(activo.valor_aproximado) : 'N/A';
+            fila.insertCell().textContent = activo.vida_util ? `${activo.vida_util} años` : 'N/A';
+            const celdaAccion = fila.insertCell();
+            const btnEliminar = document.createElement('button');
+            btnEliminar.type = 'button';
+            btnEliminar.classList.add('btn', 'btn-danger', 'btn-sm', 'btn-remove-asset');
+            btnEliminar.innerHTML = '<i class="bi bi-trash"></i>';
+            btnEliminar.title = 'Eliminar de la lista';
+            btnEliminar.onclick = function() { eliminarActivoDeLista(index); };
+            celdaAccion.appendChild(btnEliminar);
+        });
     }
-
+    function limpiarFormularioActivo(camposActivoFormElements) {
+        for (const key in camposActivoFormElements) {
+            if (key !== 'vida_util' && key !== 'valor_residual' && key !== 'metodo_depreciacion') {
+                if (camposActivoFormElements[key]) camposActivoFormElements[key].value = '';
+            }
+        }
+        const radiosEstrellas = document.querySelectorAll(`input[name="activo_satisfaccion_rating"]`);
+        radiosEstrellas.forEach(radio => radio.checked = false);
+        document.getElementById('estado').value = 'Nuevo';
+        document.getElementById('tipo_activo').dispatchEvent(new Event('change'));
+    }
+    function eliminarActivoDeLista(index) {
+        activosParaGuardar.splice(index, 1);
+        actualizarTablaActivos();
+    }
+    // ... el resto del script para el responsable, modal, etc., va aquí y no cambia...
     function setPrincipalResponsableFieldsDisabled(isDisabled) {
         camposPrincipalesResponsableIds.forEach(id => {
             const campo = document.getElementById(id);
             if (campo) campo.disabled = isDisabled;
         });
     }
-
     function setAplicacionesFieldsDisabled(isDisabled) {
         document.querySelectorAll('#contenedorCheckboxesAplicaciones .form-check-input').forEach(checkbox => {
             checkbox.disabled = isDisabled;
@@ -205,29 +341,24 @@ unset($_SESSION['error_global']);
         const textoOtros = document.getElementById('responsable_aplicaciones_otros_texto');
         if (textoOtros) textoOtros.disabled = isDisabled;
     }
-
     btnConfirmarResponsable.addEventListener('click', function() {
         let valido = true;
         if (!inputCedulaResponsable.value.trim()) {
             valido = false; inputCedulaResponsable.classList.add('is-invalid');
         } else { inputCedulaResponsable.classList.remove('is-invalid'); }
-
         camposPrincipalesResponsableIds.forEach(id => {
             const input = document.getElementById(id);
             if (!input.disabled && !input.value.trim()) {
                 valido = false; input.classList.add('is-invalid');
             } else if (!input.disabled) { input.classList.remove('is-invalid'); }
         });
-
         const appsCheckboxes = document.querySelectorAll('#contenedorCheckboxesAplicaciones .form-check-input:not([disabled])');
         let appsSeleccionadas = 0;
         appsCheckboxes.forEach(chk => { if(chk.checked) appsSeleccionadas++; });
-
         const otrosAppTextoInput = document.getElementById('responsable_aplicaciones_otros_texto');
         const otrosAppCheckbox = document.getElementById('app_Otros');
         const otrosAppTexto = otrosAppTextoInput ? otrosAppTextoInput.value.trim() : '';
-
-        if (appsCheckboxes.length > 0 && !appsCheckboxes[0].disabled) { // Solo validar si los checkboxes de apps están habilitados
+        if (appsCheckboxes.length > 0 && !appsCheckboxes[0].disabled) { 
             if (appsSeleccionadas === 0 && !(otrosAppCheckbox && otrosAppCheckbox.checked && otrosAppTexto !== '')) {
                  valido = false;
                  mostrarInfoModal('Campos incompletos', 'Por favor, seleccione al menos una aplicación que más usa el responsable o especifique en "Otros".');
@@ -236,53 +367,39 @@ unset($_SESSION['error_global']);
                  mostrarInfoModal('Campos incompletos', 'Si marca "Otros" en aplicaciones, por favor especifique cuál(es).');
             }
         }
-        
         if (valido) {
             inputCedulaResponsable.disabled = true;
             setPrincipalResponsableFieldsDisabled(true);
-            setAplicacionesFieldsDisabled(true); 
-            
+            setAplicacionesFieldsDisabled(true);
             this.style.display = 'none';
             btnEditarResponsable.style.display = 'inline-block';
-            
             seccionAgregarActivo.style.display = 'block';
             seccionTablaActivos.style.display = 'block';
-            
             document.getElementById('nombreResponsableDisplay').textContent = document.getElementById('nombre').value;
             document.getElementById('nombreResponsableTabla').textContent = document.getElementById('nombre').value;
             responsableConfirmado = true;
         } else {
             let errorMostrado = false;
-            if (document.querySelector('.is-invalid')) { // Si hay errores de validación de campos principales
-                 mostrarInfoModal('Campos incompletos', 'Por favor, complete todos los campos de información del responsable marcados con *.');
-                 errorMostrado = true;
+            if (document.querySelector('.is-invalid')) { 
+                  mostrarInfoModal('Campos incompletos', 'Por favor, complete todos los campos de información del responsable marcados con *.');
+                  errorMostrado = true;
             }
-            // Si el error no fue por campos principales, y ya se mostró el de aplicaciones, no mostrar otro.
-            // Esta parte previene mostrar el error de "complete todos los campos" si ya se mostró el de "seleccione apps".
-             if (!errorMostrado && !(appsCheckboxes.length > 0 && !appsCheckboxes[0].disabled && (appsSeleccionadas === 0 || (otrosAppCheckbox && otrosAppCheckbox.checked && otrosAppTexto === '')))){
-                // Este if es para que no se sobreescriba el mensaje de apps si ya se mostró.
-             }
         }
     });
-
     btnEditarResponsable.addEventListener('click', function() {
         inputCedulaResponsable.disabled = false;
-        setPrincipalResponsableFieldsDisabled(false); 
-        
+        setPrincipalResponsableFieldsDisabled(false);
         this.style.display = 'none';
         btnConfirmarResponsable.style.display = 'inline-block';
         seccionAgregarActivo.style.display = 'none';
         seccionTablaActivos.style.display = 'none';
         btnGuardarTodo.disabled = true;
         responsableConfirmado = false;
-        
-        inputCedulaResponsable.dispatchEvent(new Event('blur')); // Re-evaluar estado basado en la cédula actual
+        inputCedulaResponsable.dispatchEvent(new Event('blur'));
         inputCedulaResponsable.focus();
     });
-
     const checkOtrosApp = document.getElementById('app_Otros');
     const textoOtrosApp = document.getElementById('responsable_aplicaciones_otros_texto');
-
     if (checkOtrosApp) {
         checkOtrosApp.addEventListener('change', function() {
             if (this.checked && !this.disabled) {
@@ -295,214 +412,131 @@ unset($_SESSION['error_global']);
             }
         });
     }
-    
     inputCedulaResponsable.addEventListener('blur', function() {
         const cedulaVal = this.value.trim();
         const checkBoxesAppsNodeList = document.querySelectorAll('#contenedorCheckboxesAplicaciones .form-check-input');
         const textoOtrosAppInput = document.getElementById('responsable_aplicaciones_otros_texto');
         const checkOtrosAppInput = document.getElementById('app_Otros');
-
-        // Siempre habilitar campos principales al inicio del blur para permitir nueva entrada o autocompletado
         setPrincipalResponsableFieldsDisabled(false);
         btnEditarResponsable.style.display = 'none';
         btnConfirmarResponsable.style.display = 'inline-block';
-
-        // Resetear checkboxes de aplicaciones: limpiar selección y habilitar
         checkBoxesAppsNodeList.forEach(cb => { cb.checked = false; cb.disabled = false; });
         if (textoOtrosAppInput) { textoOtrosAppInput.value = ''; textoOtrosAppInput.disabled = false; textoOtrosAppInput.style.display = 'none';}
         if (checkOtrosAppInput) { checkOtrosAppInput.checked = false; checkOtrosAppInput.disabled = false; }
-
-
         if (cedulaVal) {
             buscar_datos_usuario_ajax(cedulaVal, function(data) {
                 if (data.encontrado) {
-                    // --- AJUSTE/NUEVO --- Forzar autocompletado de campos principales
                     ['nombre', 'cargo', 'regional', 'empresa_responsable'].forEach(id => {
                         const inputElement = document.getElementById(id);
                         const dataKey = id === 'nombre' ? 'nombre_completo' : (id === 'empresa_responsable' ? 'empresa' : id);
-                        if (inputElement) { // Siempre actualizar si se encontró data
-                            inputElement.value = data[dataKey] || ''; 
-                        }
+                        if (inputElement) { inputElement.value = data[dataKey] || ''; }
                     });
-                    // --- FIN AJUSTE/NUEVO ---
-
-                    setPrincipalResponsableFieldsDisabled(true); // Bloquear campos principales
+                    setPrincipalResponsableFieldsDisabled(true);
                     btnEditarResponsable.style.display = 'inline-block';
-
                     if (data.aplicaciones_usadas && data.aplicaciones_usadas.trim() !== '') {
                         divInfoAplicaciones.innerHTML = `📝 <strong>Información:</strong> Este responsable ya tiene las siguientes aplicaciones asignadas: <br><strong>${data.aplicaciones_usadas}</strong>.<br>Estos campos han sido bloqueados. Para modificarlos, use "Gestionar Usuarios".`;
                         divInfoAplicaciones.style.display = 'block';
-
                         const appsGuardadas = data.aplicaciones_usadas.split(',').map(app => app.trim());
                         let otrasAppsTextoGuardado = '';
-                        
                         appsGuardadas.forEach(appGuardada => {
                             if (appGuardada.startsWith('Otros: ')) {
                                 otrasAppsTextoGuardado = appGuardada.substring('Otros: '.length);
                             }
                         });
-
                         checkBoxesAppsNodeList.forEach(cb => {
                             if ((cb.value === "Otros" && otrasAppsTextoGuardado) || appsGuardadas.includes(cb.value)) {
                                 cb.checked = true;
                             }
                             cb.disabled = true;
                         });
-                        
                         if (checkOtrosAppInput && otrasAppsTextoGuardado) {
                              checkOtrosAppInput.checked = true;
                              if (textoOtrosAppInput) {
-                                textoOtrosAppInput.value = otrasAppsTextoGuardado;
-                                textoOtrosAppInput.style.display = 'block';
-                                textoOtrosAppInput.disabled = true;
+                                 textoOtrosAppInput.value = otrasAppsTextoGuardado;
+                                 textoOtrosAppInput.style.display = 'block';
+                                 textoOtrosAppInput.disabled = true;
                              }
                         } else if (textoOtrosAppInput) {
                             textoOtrosAppInput.style.display = 'none';
                             textoOtrosAppInput.disabled = true;
                         }
                          if (checkOtrosAppInput) checkOtrosAppInput.disabled = true;
-
                     } else { 
                         divInfoAplicaciones.textContent = 'Este responsable aún no tiene aplicaciones frecuentes registradas. Por favor, selecciónalas.';
                         divInfoAplicaciones.style.display = 'block';
                         setAplicacionesFieldsDisabled(false);
                     }
                 } else { 
-                    // --- AJUSTE/NUEVO --- Limpiar campos principales si el usuario no fue encontrado
                     document.getElementById('nombre').value = '';
                     document.getElementById('cargo').value = '';
                     document.getElementById('regional').value = '';
                     document.getElementById('empresa_responsable').value = '';
-                    // --- FIN AJUSTE/NUEVO ---
                     setPrincipalResponsableFieldsDisabled(false);
                     setAplicacionesFieldsDisabled(false);
                     divInfoAplicaciones.style.display = 'none';
                 }
             });
         } else {
-            // --- AJUSTE/NUEVO --- Limpiar campos principales si la cédula está vacía
             document.getElementById('nombre').value = '';
             document.getElementById('cargo').value = '';
             document.getElementById('regional').value = '';
             document.getElementById('empresa_responsable').value = '';
-            // --- FIN AJUSTE/NUEVO ---
             setPrincipalResponsableFieldsDisabled(false);
             divInfoAplicaciones.style.display = 'none';
             setAplicacionesFieldsDisabled(false);
             if (checkOtrosAppInput) checkOtrosAppInput.dispatchEvent(new Event('change'));
         }
     });
-    
-    // El resto de tus funciones (mostrarInfoModal, manejo de tabla de activos, etc.)
-    // deberían funcionar bien con estos cambios.
-    // Asegúrate de que la función buscar_datos_usuario_ajax esté definida y funcione correctamente.
-
-    const camposActivoIds = {
-        tipo_activo: 'tipo_activo', marca: 'marca', serie: 'serie', estado: 'estado',
-        valor_aproximado: 'valor_aproximado', codigo_inv: 'codigo_inv', detalles: 'detalles',
-        procesador: 'activo_procesador', ram: 'activo_ram', disco_duro: 'activo_disco_duro',
-        tipo_equipo: 'activo_tipo_equipo', red: 'activo_red', sistema_operativo: 'activo_so',
-        offimatica: 'activo_offimatica', antivirus: 'activo_antivirus',
-        satisfaccion_rating_name: 'activo_satisfaccion_rating'
-    };
-    
     function mostrarInfoModal(titulo, mensaje) {
         const modalElement = document.getElementById('infoModal');
-        const modalTitleElement = document.getElementById('infoModalTitle'); 
-        const modalMessageElement = document.getElementById('infoModalMessage'); 
+        const modalTitleElement = document.getElementById('infoModalTitle');
+        const modalMessageElement = document.getElementById('infoModalMessage');
         if (!infoModalInstance && modalElement) { infoModalInstance = new bootstrap.Modal(modalElement); }
         if (modalTitleElement) { modalTitleElement.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${titulo}`; }
         if (modalMessageElement) { modalMessageElement.textContent = mensaje; }
         if (infoModalInstance) { infoModalInstance.show(); }
     }
-    
-    document.getElementById('tipo_activo').addEventListener('change', function() {
-        document.getElementById('campos_computador_form_activo').style.display = (this.value === 'Computador') ? 'block' : 'none';
-    });
-    
-    btnAgregarActivoTabla.addEventListener('click', function() {
-        if (!responsableConfirmado) {
-            mostrarInfoModal('Confirme primero', 'Primero debe confirmar los datos del responsable usando el botón correspondiente.');
+    function buscar_datos_usuario_ajax(cedula, callback) {
+        if (!cedula) {
+            callback({ encontrado: false, mensaje: 'Cédula no proporcionada.' });
             return;
         }
-        const activo = {}; let activoValido = true; let camposActivoForm = {};
-        for (const key in camposActivoIds) {
-            if (key === 'satisfaccion_rating_name') {
-                const ratingChecked = document.querySelector(`input[name="${camposActivoIds[key]}"]:checked`);
-                activo[key] = ratingChecked ? ratingChecked.value : null;
-            } else {
-                const inputElement = document.getElementById(camposActivoIds[key]);
-                if (inputElement) { activo[key] = inputElement.value.trim(); camposActivoForm[key] = inputElement; } else { activo[key] = ''; }
-            }
-        }
-        if (!activo.tipo_activo || !activo.marca || !activo.serie || !activo.estado || !activo.valor_aproximado) {
-            mostrarInfoModal('Campos incompletos', 'Complete los campos obligatorios del activo: Tipo, Marca, Serie, Estado, Valor.'); activoValido = false;
-        }
-        if(isNaN(parseFloat(activo.valor_aproximado)) && activo.valor_aproximado !== '') {
-            mostrarInfoModal('Formato incorrecto', 'El valor aproximado debe ser un número.'); activoValido = false;
-        }
-        if (activoValido) {
-            activosParaGuardar.push(activo); actualizarTablaActivos(); limpiarFormularioActivo(camposActivoForm);
-            document.getElementById('tipo_activo').dispatchEvent(new Event('change'));
-        }
-    });
-
-    function actualizarTablaActivos() {
-        tablaActivosBody.innerHTML = '';
-        if (activosParaGuardar.length === 0) { noActivosMensaje.style.display = 'block'; btnGuardarTodo.disabled = true; return; }
-        noActivosMensaje.style.display = 'none'; btnGuardarTodo.disabled = false;
-        activosParaGuardar.forEach((activo, index) => {
-            const fila = tablaActivosBody.insertRow();
-            fila.insertCell().textContent = activo.tipo_activo || 'N/A';
-            fila.insertCell().textContent = activo.marca || 'N/A';
-            fila.insertCell().textContent = activo.serie || 'N/A';
-            fila.insertCell().textContent = activo.estado || 'N/A';
-            fila.insertCell().textContent = activo.valor_aproximado || 'N/A';
-            let estrellasDisplay = '';
-            if (activo.satisfaccion_rating_name) { for (let i = 0; i < 5; i++) { estrellasDisplay += (i < parseInt(activo.satisfaccion_rating_name)) ? '★' : '☆'; } } else { estrellasDisplay = 'N/A'; }
-            fila.insertCell().innerHTML = `<span style="color: #f5b301; font-size:1.2em;">${estrellasDisplay}</span>`;
-            const celdaAccion = fila.insertCell(); const btnEliminar = document.createElement('button');
-            btnEliminar.type = 'button'; btnEliminar.classList.add('btn', 'btn-danger', 'btn-sm', 'btn-remove-asset');
-            btnEliminar.innerHTML = '<i class="bi bi-trash"></i>'; btnEliminar.title = 'Eliminar de la lista';
-            btnEliminar.onclick = function() { eliminarActivoDeLista(index); }; celdaAccion.appendChild(btnEliminar);
-        });
+        fetch(`buscar_datos_usuario.php?cedula=${encodeURIComponent(cedula)}`)
+            .then(response => { if (!response.ok) { throw new Error('Error en la red: ' + response.statusText); } return response.json(); })
+            .then(data => { callback(data); })
+            .catch(error => { console.error('Error AJAX:', error); callback({ encontrado: false, mensaje: 'Error al contactar el servidor.' }); });
     }
 
-    function limpiarFormularioActivo(camposActivoFormElements) {
-        for (const key in camposActivoFormElements) { if(camposActivoFormElements[key]) camposActivoFormElements[key].value = ''; }
-        const radiosEstrellas = document.querySelectorAll(`input[name="activo_satisfaccion_rating"]`);
-        radiosEstrellas.forEach(radio => radio.checked = false);
-        document.getElementById('estado').value = 'Nuevo';
-    }
+    // PASO 2: USAR UN EVENTO 'CLICK' EN LUGAR DE 'SUBMIT'
+    btnGuardarTodo.addEventListener('click', function() {
+        console.log("--- Botón 'Guardar Todo' presionado. Iniciando proceso. ---");
 
-    function eliminarActivoDeLista(index) { activosParaGuardar.splice(index, 1); actualizarTablaActivos(); }
-    
-    // --- AJUSTE/NUEVO --- Lógica de habilitación de campos ANTES del submit
-    formPrincipal.addEventListener('submit', function(event) {
+        // Validaciones iniciales
         if (!responsableConfirmado) { 
             mostrarInfoModal('Confirme Responsable', 'Primero debe confirmar los datos del responsable usando el botón correspondiente.');
-            event.preventDefault(); return false;
+            return;
         }
         if (activosParaGuardar.length === 0) {
             mostrarInfoModal('Sin Activos', 'Debe agregar al menos un activo a la lista antes de guardar.');
-            event.preventDefault(); return false;
+            return;
         }
-    
-        // Habilitar TODOS los campos del responsable (incluyendo cédula y apps) ANTES de enviar el formulario
-        // ya que el backend los espera, y los campos deshabilitados no se envían.
+
+        console.log("Validaciones pasadas. Preparando formulario para envío.");
+
+        // Habilitar campos del responsable para que sus datos se envíen
         inputCedulaResponsable.disabled = false;
         setPrincipalResponsableFieldsDisabled(false);
         setAplicacionesFieldsDisabled(false); 
+        document.getElementById('metodo_depreciacion').disabled = false;
 
-        // Deshabilitar campos del formulario de activo individual (los que están en la sección 2)
-        // para que no se envíen sueltos, ya que sus datos están en el array activosParaGuardar.
-        for (const key in camposActivoIds) {
-            const inputElement = document.getElementById(camposActivoIds[key]);
-            if (inputElement && key !== 'satisfaccion_rating_name') { inputElement.disabled = true; }
-        }
-        document.querySelectorAll(`input[name="${camposActivoIds.satisfaccion_rating_name}"]`).forEach(r => r.disabled = true);
+        // Limpiar inputs ocultos previos para evitar duplicados si se presiona guardar varias veces
+        formPrincipal.querySelectorAll('input[type="hidden"]').forEach(el => {
+            if (el.name.startsWith('activos[')) {
+                el.remove();
+            }
+        });
 
-        // Crear inputs hidden para cada activo en la lista
+        // Crear los campos ocultos (hidden inputs) con los datos de los activos en la lista
         activosParaGuardar.forEach((activo, index) => {
             for (const propiedad in activo) {
                 const inputHidden = document.createElement('input');
@@ -510,19 +544,16 @@ unset($_SESSION['error_global']);
                 let fieldName = propiedad;
                 if (propiedad === 'satisfaccion_rating_name') { fieldName = 'satisfaccion_rating'; }
                 inputHidden.name = `activos[${index}][${fieldName}]`;
-                inputHidden.value = activo[propiedad] === null ? '' : activo[propiedad]; // Enviar string vacío si es null
+                inputHidden.value = activo[propiedad] === null ? '' : activo[propiedad];
                 formPrincipal.appendChild(inputHidden);
             }
         });
-    });
 
-    function buscar_datos_usuario_ajax(cedula, callback) {
-        if (!cedula) { callback({ encontrado: false, mensaje: 'Cédula no proporcionada.' }); return; }
-        fetch(`buscar_datos_usuario.php?cedula=${encodeURIComponent(cedula)}`)
-            .then(response => { if (!response.ok) { throw new Error('Error en la red: ' + response.statusText); } return response.json(); })
-            .then(data => { callback(data); })
-            .catch(error => { console.error('Error AJAX:', error); callback({ encontrado: false, mensaje: 'Error al contactar el servidor.' }); });
-    }
+        console.log("Campos ocultos creados. Enviando formulario...");
+
+        // Enviar el formulario explícitamente
+        formPrincipal.submit();
+    });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

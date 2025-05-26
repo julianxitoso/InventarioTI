@@ -4,7 +4,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 session_start();
 require_once 'backend/auth_check.php';
-restringir_acceso_pagina(['admin', 'tecnico', 'registrador']); // Permitir a registradores si usan index.php
+restringir_acceso_pagina(['admin', 'tecnico', 'registrador']);
 
 require_once 'backend/db.php';
 require_once 'backend/historial_helper.php';
@@ -27,10 +27,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $responsable_regional = trim($_POST['responsable_regional'] ?? '');
     $responsable_empresa = trim($_POST['responsable_empresa'] ?? '');
 
-    // <<< --- CAPTURA DE DATOS DE APLICACIONES DEL RESPONSABLE --- >>>
+    // --- CAPTURA DE DATOS DE APLICACIONES DEL RESPONSABLE ---
     $aplicaciones_seleccionadas_raw = $_POST['responsable_aplicaciones'] ?? [];
     $otros_aplicaciones_texto = trim($_POST['responsable_aplicaciones_otros_texto'] ?? '');
-
     $aplicaciones_para_guardar_array = [];
     if (is_array($aplicaciones_seleccionadas_raw)) {
         foreach ($aplicaciones_seleccionadas_raw as $app) {
@@ -42,7 +41,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
     $aplicaciones_usadas_responsable_string = implode(', ', $aplicaciones_para_guardar_array);
-    // <<< --- FIN CAPTURA DE DATOS DE APLICACIONES --- >>>
 
     $activos_lote = $_POST['activos'] ?? [];
 
@@ -62,15 +60,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $activos_guardados_count = 0;
     $ids_activos_creados = [];
 
-    // <<< --- NUEVO: ACTUALIZAR APLICACIONES DEL USUARIO RESPONSABLE --- >>>
-    // Asumimos que el responsable_cedula debe existir en la tabla 'usuarios' como la columna 'usuario'
+    // --- ACTUALIZAR APLICACIONES DEL USUARIO RESPONSABLE ---
     if (!empty($aplicaciones_usadas_responsable_string)) {
         $sql_update_usuario = "UPDATE usuarios SET aplicaciones_usadas = ? WHERE usuario = ?";
         $stmt_update_usuario = $conexion->prepare($sql_update_usuario);
         if ($stmt_update_usuario) {
             $stmt_update_usuario->bind_param("ss", $aplicaciones_usadas_responsable_string, $responsable_cedula);
             if (!$stmt_update_usuario->execute()) {
-                // No consideramos esto un error fatal para el registro de activos, pero lo logueamos.
                 error_log("Advertencia: No se pudo actualizar 'aplicaciones_usadas' para el usuario ".$responsable_cedula.": " . $stmt_update_usuario->error);
             }
             $stmt_update_usuario->close();
@@ -78,18 +74,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             error_log("Advertencia: Error al preparar la actualización de 'aplicaciones_usadas' para el usuario ".$responsable_cedula.": " . $conexion->error);
         }
     }
-    // <<< --- FIN NUEVO: ACTUALIZAR APLICACIONES DEL USUARIO --- >>>
 
-
-    // La columna 'aplicaciones_usadas' YA NO VA en la tabla activos_tecnologicos
-    // así que la quitamos del INSERT y del bind_param de activos.
+    // Consulta SQL con todas las columnas, incluyendo las de depreciación
     $sql = "INSERT INTO activos_tecnologicos (
                 cedula, nombre, cargo, regional, Empresa, 
                 tipo_activo, marca, serie, estado, valor_aproximado, codigo_inv, detalles, 
                 procesador, ram, disco_duro, tipo_equipo, red, sistema_operativo, 
-                offimatica, antivirus, satisfaccion_rating, fecha_registro
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"; // 21 '?'
-    $stmt_activos = $conexion->prepare($sql); // Cambié el nombre de $stmt a $stmt_activos para claridad
+                offimatica, antivirus, satisfaccion_rating, 
+                fecha_compra, vida_util, valor_residual, metodo_depreciacion,
+                fecha_registro
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"; // 25 '?'
+            
+    $stmt_activos = $conexion->prepare($sql);
 
     if (!$stmt_activos) {
         error_log("Error al preparar la consulta de inserción de activos: " . $conexion->error);
@@ -100,12 +96,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     foreach ($activos_lote as $index => $activo_data) {
+        // --- Datos existentes ---
         $tipo_activo = trim($activo_data['tipo_activo'] ?? '');
         $marca = trim($activo_data['marca'] ?? '');
         $serie = trim($activo_data['serie'] ?? '');
         $estado = trim($activo_data['estado'] ?? '');
         $valor_aproximado_str = trim($activo_data['valor_aproximado'] ?? '');
-        
         $codigo_inv = trim($activo_data['codigo_inv'] ?? '');
         $detalles = trim($activo_data['detalles'] ?? '');
         $procesador = trim($activo_data['procesador'] ?? '');
@@ -123,8 +119,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if ($rating_value !== false) $satisfaccion_rating = $rating_value;
         }
 
+        // --- Datos de depreciación ---
+        $fecha_compra = trim($activo_data['fecha_compra'] ?? '');
+        $vida_util = trim($activo_data['vida_util'] ?? null);
+        $valor_residual = trim($activo_data['valor_residual'] ?? null);
+        $metodo_depreciacion = trim($activo_data['metodo_depreciacion'] ?? '');
+        
+        if (empty($fecha_compra)) {
+            $fecha_compra = null;
+        }
+        
+        // --- Validaciones ---
         if (empty($tipo_activo) || empty($marca) || empty($serie) || empty($estado) || $valor_aproximado_str === '') {
-            $errores_guardado[] = "Activo #".($index+1).": Faltan campos obligatorios (Tipo, Marca, Serie, Estado, Valor).";
+            $errores_guardado[] = "Activo #".($index+1).": Faltan campos obligatorios.";
             continue;
         }
         $valor_aproximado = filter_var($valor_aproximado_str, FILTER_VALIDATE_FLOAT);
@@ -133,15 +140,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             continue;
         }
         
-        // La cadena de tipos ahora tiene 21 caracteres (20s, 1d, 1i)
-        // Se quitó la última 's' que era para aplicaciones_usadas_string
+        // --- CORRECCIÓN FINAL ---
+        // La cadena de tipos ahora tiene 25 caracteres para coincidir con las 25 variables.
         $stmt_activos->bind_param(
-            "sssssssssdssssssssssi", 
+            "sssssssssdssssssssssisids", 
             $responsable_cedula, $responsable_nombre, $responsable_cargo, $responsable_regional, $responsable_empresa,
             $tipo_activo, $marca, $serie, $estado, $valor_aproximado, $codigo_inv, $detalles,
             $procesador, $ram, $disco_duro, $tipo_equipo, $red, $sistema_operativo,
-            $offimatica, $antivirus, $satisfaccion_rating
-            // $aplicaciones_usadas_string YA NO VA AQUÍ
+            $offimatica, $antivirus, $satisfaccion_rating,
+            $fecha_compra,
+            $vida_util,
+            $valor_residual,
+            $metodo_depreciacion
         );
 
         if ($stmt_activos->execute()) {
@@ -150,13 +160,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $activos_guardados_count++;
 
             $descripcion_historial = "Activo creado. Tipo: ".htmlspecialchars($tipo_activo).", Serie: ".htmlspecialchars($serie);
-            // ... (resto de la descripción del historial, no es necesario incluir las apps aquí ya que son del usuario)
-
             $datos_creacion_activo = $activo_data;
             $datos_creacion_activo['cedula_responsable'] = $responsable_cedula;
-            // ... (resto de los datos para el historial)
-            // $datos_creacion_activo['aplicaciones_usadas'] = $aplicaciones_usadas_responsable_string; // Esto ahora es del usuario
-
+            
             $usuario_actual_sistema_para_historial = $_SESSION['usuario_login'] ?? 'Sistema';
             registrar_evento_historial($conexion, $id_activo_creado, HISTORIAL_TIPO_CREACION, $descripcion_historial, $usuario_actual_sistema_para_historial, null, $datos_creacion_activo);
         } else {
@@ -166,7 +172,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } 
     $stmt_activos->close();
 
-    // Lógica de commit/rollback y mensajes (sin cambios)
+    // Lógica de commit/rollback y mensajes
     if (empty($errores_guardado) && $activos_guardados_count > 0) {
         $conexion->commit();
         $_SESSION['mensaje_global'] = $activos_guardados_count . " activo(s) registrado(s) exitosamente para " . htmlspecialchars($responsable_nombre) . ".";
