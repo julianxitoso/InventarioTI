@@ -196,7 +196,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login_submit'])) {
 
     <div class="login-container">
         <div class="login-header">
-            <img src="imagenes/logo3.png" alt="Logo Empresa">
+            <img src="imagenes/logo.png" alt="Logo Empresa">
             <h2>Inventario de Activos</h2>
             <p class="text-muted">ARPESOD ASOCIADOS SAS</p>
         </div>

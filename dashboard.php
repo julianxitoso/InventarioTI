@@ -96,7 +96,7 @@ foreach ($raw_data_tipo_estado as $item) {
 }
 uasort($tipo_activo_summary, function ($a, $b) { return $b['total'] - $a['total']; });
 $labels_tipo_activo_new = []; $data_tipo_activo_total = []; $detailed_status_data_for_tooltip = [];
-$limit_tipos = 7; $count_tipos = 0; // Mantener el límite de 7 para este gráfico
+$limit_tipos = 20; $count_tipos = 0; // Mantener el límite de 7 para este gráfico
 foreach ($tipo_activo_summary as $tipo => $summary) {
     if ($count_tipos >= $limit_tipos) break;
     $labels_tipo_activo_new[] = $tipo;
