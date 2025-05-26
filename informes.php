@@ -215,7 +215,7 @@ if(isset($conexion)) { mysqli_close($conexion); } // Cerrar conexión después d
 <div class="top-bar-custom">
     <div class="logo-container-top">
         <a href="menu.php" title="Ir a Inicio">
-            <img src="imagenes/logo3.png" alt="Logo ARPESOD ASOCIADOS SAS">
+            <img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS">
         </a>
     </div>
     <div class="d-flex align-items-center">

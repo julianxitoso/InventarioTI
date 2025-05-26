@@ -211,5 +211,126 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <div id="chatbot-button">
+    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" class="bi bi-chat-dots-fill" viewBox="0 0 16 16">
+        <path d="M16 8c0 3.866-3.582 7-8 7a9.06 9.06 0 0 1-2.347-.306c-.584.296-1.925.864-4.181 1.234-.2.032-.352-.176-.273-.362.354-.836.674-1.95.77-2.966C.744 11.37 0 9.76 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7zM5 8a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm4 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+    </svg>
+</div>
+
+<div id="chatbot-container">
+    <div id="chatbot-header">
+        <span>Mi Chatbot</span>
+        <span id="chatbot-close-button">&times;</span>
+    </div>
+    <iframe id="chatbot-iframe" src="" frameborder="0"></iframe>
+</div>
+
+<style>
+    /* Estilo para el botón de chat */
+    #chatbot-button {
+        position: fixed;
+        bottom: 25px;
+        right: 25px;
+        width: 60px;
+        height: 60px;
+        background-color: #007bff; /* Puedes cambiar este color */
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        z-index: 999;
+        transition: transform 0.2s;
+    }
+
+    #chatbot-button:hover {
+        transform: scale(1.1);
+    }
+
+    /* Contenedor de la ventana del chat, oculto por defecto */
+    #chatbot-container {
+        position: fixed;
+        bottom: 100px;
+        right: 25px;
+        width: 370px;
+        height: 70vh;
+        max-height: 500px;
+        background-color: white;
+        border-radius: 15px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        display: none; /* Oculto por defecto */
+        flex-direction: column;
+        overflow: hidden;
+        z-index: 1000;
+    }
+
+    /* Cabecera de la ventana de chat */
+    #chatbot-header {
+        background-color: #007bff; /* Puedes cambiar este color */
+        color: white;
+        padding: 10px 15px;
+        font-weight: bold;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    #chatbot-close-button {
+        cursor: pointer;
+        font-size: 24px;
+        font-weight: bold;
+    }
+
+    /* Iframe donde se cargará tu chatbot */
+    #chatbot-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+    }
+
+    /* Para que el chatbot se muestre */
+    #chatbot-container.visible {
+        display: flex;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // --- CONFIGURACIÓN ---
+        // Pega la URL completa de tu chatbot aquí
+        const chatbotUrl = "https://asistenteaifront.onrender.com/"; 
+        // -------------------
+
+        const chatButton = document.getElementById('chatbot-button');
+        const chatbotContainer = document.getElementById('chatbot-container');
+        const chatbotIframe = document.getElementById('chatbot-iframe');
+        const closeButton = document.getElementById('chatbot-close-button');
+        let isChatbotLoaded = false;
+
+        // Función para abrir el chat
+        function openChat() {
+            // Carga la URL en el iframe solo la primera vez que se abre
+            if (!isChatbotLoaded) {
+                chatbotIframe.src = chatbotUrl;
+                isChatbotLoaded = true;
+            }
+            chatbotContainer.classList.add('visible');
+        }
+
+        // Función para cerrar el chat
+        function closeChat() {
+            chatbotContainer.classList.remove('visible');
+        }
+
+        // Asignar eventos a los botones
+        chatButton.addEventListener('click', openChat);
+        closeButton.addEventListener('click', closeChat);
+    });
+</script>
+
 </body>
 </html>
