@@ -1,140 +1,164 @@
 <?php
-error_reporting(E_ALL); // Para depuración, considera quitar en producción
-ini_set('display_errors', 1); // Para depuración, considera quitar en producción
 session_start();
-
-if (!isset($_SESSION['usuario_id'])) { // Usar una variable de sesión más robusta como 'usuario_id' o 'loggedin'
+if (!isset($_SESSION['usuario_id'])) {
     header("Location: login.php");
     exit;
 }
 
-require_once 'backend/auth_check.php'; // Para funciones como tiene_permiso_para y es_admin
-// Restringir acceso si es necesario, por ejemplo, solo admin, tecnico, auditor pueden ver el dashboard
+require_once 'backend/auth_check.php';
 restringir_acceso_pagina(['admin', 'tecnico', 'auditor']);
 
+require_once 'backend/db.php';
+if (!$conn || $conn->connect_error) {
+    die("Error crítico de conexión a la base de datos: " . ($conn->connect_error ?? 'Error desconocido'));
+}
+$conn->set_charset("utf8mb4");
 
-require_once 'backend/db.php'; 
-if (isset($conn) && !isset($conexion)) { $conexion = $conn; }
-if (!isset($conexion) || !$conexion) { die("Error de conexión a la base de datos."); }
-$conexion->set_charset("utf8mb4"); 
+// --- INICIO LÓGICA PARA FILTROS Y AJAX ---
+$is_ajax_request = isset($_GET['ajax']) && $_GET['ajax'] == '1';
+$filtro_regional_valor = $_GET['filtro_regional'] ?? null;
+$filtro_empresa_valor = $_GET['filtro_empresa'] ?? null;
+$filtro_tipo_activo_valor = $_GET['filtro_tipo_activo'] ?? null;
 
-// Captura de datos de sesión para la barra superior
-$nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
-$rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
+$where_clause = " WHERE estado != 'Dado de Baja'";
+$params = [];
+$types = "";
 
-// Función para mostrar estrellas (copiada de informes.php para uso en KPI)
-if (!function_exists('displayStars')) {
-    function displayStars($rating, $totalStars = 5) {
-        if ($rating === null || !is_numeric($rating) || $rating < 0) return 'N/A';
-        $rating_calc = round(floatval($rating) * 2) / 2; 
-        $output = "<span style='color: #f5b301; font-size: 0.9em;'>"; 
-        for ($i = 1; $i <= $totalStars; $i++) {
-            if ($rating_calc >= $i) $output .= '★';
-            elseif ($rating_calc >= $i - 0.5) $output .= '★'; 
-            else $output .= '☆';
-        }
-        $output .= "</span> (" . number_format(floatval($rating), 1) . ")";
-        return $output;
+if ($filtro_regional_valor) {
+    $where_clause .= " AND regional = ?";
+    $params[] = $filtro_regional_valor;
+    $types .= "s";
+}
+if ($filtro_empresa_valor) {
+    $where_clause .= " AND Empresa = ?"; // Asumiendo que la columna es 'Empresa'
+    $params[] = $filtro_empresa_valor;
+    $types .= "s";
+}
+if ($filtro_tipo_activo_valor) {
+    $where_clause .= " AND tipo_activo = ?";
+    $params[] = $filtro_tipo_activo_valor;
+    $types .= "s";
+}
+// --- FIN LÓGICA PARA FILTROS Y AJAX ---
+
+
+/* --- INICIO DE CONSULTAS SQL PARA EL DASHBOARD (MODIFICADAS PARA FILTROS) --- */
+
+function ejecutarConsultaConFiltro($conexion, $sql_base, $where_clause_con_filtros, $params_filtro, $types_filtro) {
+    $sql_completo = $sql_base . $where_clause_con_filtros;
+    $stmt = $conexion->prepare($sql_completo);
+    if (!$stmt) {
+        error_log("Error preparando consulta: " . $conexion->error . " SQL: " . $sql_completo);
+        return null;
     }
+    if (!empty($params_filtro)) {
+        $stmt->bind_param($types_filtro, ...$params_filtro);
+    }
+    if (!$stmt->execute()) {
+        error_log("Error ejecutando consulta: " . $stmt->error . " SQL: " . $sql_completo);
+        $stmt->close();
+        return null;
+    }
+    $result = $stmt->get_result();
+    $stmt->close();
+    return $result;
 }
 
+// 1. Total de Activos Operativos
+$result_total = ejecutarConsultaConFiltro($conn, "SELECT COUNT(*) as total FROM activos_tecnologicos", $where_clause, $params, $types);
+$total_activos = ($result_total) ? (int)$result_total->fetch_assoc()['total'] : 0;
 
-// --- Consultas para KPIs y Gráficos ---
+// 2. Valor Total del Inventario
+$result_valor = ejecutarConsultaConFiltro($conn, "SELECT SUM(valor_aproximado) as valor_total FROM activos_tecnologicos", $where_clause, $params, $types);
+$valor_total_inventario = ($result_valor) ? (float)$result_valor->fetch_assoc()['valor_total'] : 0;
 
-// 1. Cantidad Total de Activos (Operativos)
-$result_total_activos = mysqli_query($conexion, "SELECT COUNT(*) as total FROM activos_tecnologicos WHERE estado != 'Dado de Baja'");
-$total_activos = ($result_total_activos) ? mysqli_fetch_assoc($result_total_activos)['total'] : 0;
+// 3. Usuarios Únicos con Activos
+$sql_usuarios_base = "SELECT COUNT(DISTINCT cedula) as total_usuarios FROM activos_tecnologicos";
+$where_usuarios_con_activos = $where_clause . (empty($where_clause) ? " WHERE " : " AND ") . "cedula IS NOT NULL AND cedula != ''";
+$result_usuarios = ejecutarConsultaConFiltro($conn, $sql_usuarios_base, $where_usuarios_con_activos, $params, $types);
+$total_usuarios_con_activos = ($result_usuarios) ? (int)$result_usuarios->fetch_assoc()['total_usuarios'] : 0;
 
-// 2. Activos por Estado (para el KPI, Operativos)
+
+// 4. Top Estados de Activos
 $activos_por_estado_data_kpi = [];
-$result_por_estado_kpi = mysqli_query($conexion, "SELECT estado, COUNT(*) as cantidad FROM activos_tecnologicos WHERE estado != 'Dado de Baja' GROUP BY estado ORDER BY cantidad DESC");
-if ($result_por_estado_kpi) {
-    while ($row = mysqli_fetch_assoc($result_por_estado_kpi)) {
+$sql_estado_base = "SELECT estado, COUNT(*) as cantidad FROM activos_tecnologicos";
+$sql_estado_group_order = " GROUP BY estado ORDER BY cantidad DESC";
+$result_por_estado = ejecutarConsultaConFiltro($conn, $sql_estado_base, $where_clause . $sql_estado_group_order, $params, $types);
+
+if ($result_por_estado) {
+    while ($row = $result_por_estado->fetch_assoc()) {
         $activos_por_estado_data_kpi[] = $row;
     }
 }
 
-// 3. Número de Usuarios con Activos (Operativos)
-$result_total_usuarios = mysqli_query($conexion, "SELECT COUNT(DISTINCT cedula) as total_usuarios FROM activos_tecnologicos WHERE cedula IS NOT NULL AND cedula != '' AND estado != 'Dado de Baja'");
-$total_usuarios_con_activos = ($result_total_usuarios) ? mysqli_fetch_assoc($result_total_usuarios)['total_usuarios'] : 0;
-
-// 4. KPI: Tipo de Activo con Mejor Calificación Promedio (Operativos)
-$kpi_mejor_tipo_activo_nombre = "N/A";
-$kpi_mejor_tipo_activo_rating_avg = 0;
-$query_mejor_tipo = "SELECT tipo_activo, AVG(satisfaccion_rating) as avg_rating
-                     FROM activos_tecnologicos
-                     WHERE satisfaccion_rating IS NOT NULL AND estado != 'Dado de Baja'
-                     GROUP BY tipo_activo
-                     ORDER BY avg_rating DESC
-                     LIMIT 1";
-$result_mejor_tipo = mysqli_query($conexion, $query_mejor_tipo);
-if ($result_mejor_tipo && mysqli_num_rows($result_mejor_tipo) > 0) {
-    $row_mejor_tipo = mysqli_fetch_assoc($result_mejor_tipo);
-    $kpi_mejor_tipo_activo_nombre = $row_mejor_tipo['tipo_activo'];
-    $kpi_mejor_tipo_activo_rating_avg = (float)$row_mejor_tipo['avg_rating'];
+// SI ES UNA SOLICITUD AJAX, DEVOLVEMOS SOLO LOS DATOS KPI EN JSON
+if ($is_ajax_request) {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'total_activos' => $total_activos,
+        'valor_total_inventario' => $valor_total_inventario,
+        'total_usuarios_con_activos' => $total_usuarios_con_activos,
+        'activos_por_estado_data_kpi' => $activos_por_estado_data_kpi,
+        'filtro_aplicado' => $filtro_regional_valor ?? $filtro_empresa_valor ?? $filtro_tipo_activo_valor ?? 'Ninguno'
+    ]);
+    $conn->close();
+    exit;
 }
 
-// 5. Datos para Gráfico: Activos por Tipo (con detalle de estado para tooltip, Operativos)
-$raw_data_tipo_estado = [];
-$result_graf_tipo_detalle = mysqli_query($conexion, 
-    "SELECT tipo_activo, estado, COUNT(*) as cantidad 
-     FROM activos_tecnologicos 
-     WHERE tipo_activo IS NOT NULL AND tipo_activo != '' AND estado != 'Dado de Baja'
-     GROUP BY tipo_activo, estado 
-     ORDER BY tipo_activo, estado"
-);
-if ($result_graf_tipo_detalle) {
-    while ($row = mysqli_fetch_assoc($result_graf_tipo_detalle)) { $raw_data_tipo_estado[] = $row; }
-}
-$tipo_activo_summary = [];
-foreach ($raw_data_tipo_estado as $item) {
-    if (!isset($tipo_activo_summary[$item['tipo_activo']])) {
-        $tipo_activo_summary[$item['tipo_activo']] = ['total' => 0, 'statuses' => []];
+// --- EL RESTO DE LAS CONSULTAS PARA GRÁFICOS SOLO SE EJECUTAN EN CARGA NORMAL ---
+// 5. Datos para Gráfico: Activos por Tipo (estos no se filtran dinámicamente por ahora, pero se podría)
+$labels_tipo_activo = [];
+$data_tipo_activo = [];
+$result_graf_tipo = $conn->query("SELECT tipo_activo, COUNT(*) as cantidad FROM activos_tecnologicos WHERE estado != 'Dado de Baja' GROUP BY tipo_activo ORDER BY cantidad DESC LIMIT 20"); // Ajustado a 20 para consistencia
+if ($result_graf_tipo) {
+    while ($row = $result_graf_tipo->fetch_assoc()) {
+        $labels_tipo_activo[] = $row['tipo_activo'];
+        $data_tipo_activo[] = $row['cantidad'];
     }
-    $tipo_activo_summary[$item['tipo_activo']]['total'] += $item['cantidad'];
-    $tipo_activo_summary[$item['tipo_activo']]['statuses'][$item['estado']] = $item['cantidad'];
-}
-uasort($tipo_activo_summary, function ($a, $b) { return $b['total'] - $a['total']; });
-$labels_tipo_activo_new = []; $data_tipo_activo_total = []; $detailed_status_data_for_tooltip = [];
-$limit_tipos = 20; $count_tipos = 0; // Mantener el límite de 7 para este gráfico
-foreach ($tipo_activo_summary as $tipo => $summary) {
-    if ($count_tipos >= $limit_tipos) break;
-    $labels_tipo_activo_new[] = $tipo;
-    $data_tipo_activo_total[] = $summary['total'];
-    $detailed_status_data_for_tooltip[$tipo] = $summary['statuses'];
-    $count_tipos++;
 }
 
-// 6. Datos para Gráfico: Activos por Regional (Operativos)
+// 6. Datos para Gráfico: Activos por Regional
 $labels_regional = [];
 $data_regional = [];
-$result_graf_regional = mysqli_query($conexion, "SELECT regional, COUNT(*) as cantidad FROM activos_tecnologicos WHERE regional IS NOT NULL AND regional != '' AND estado != 'Dado de Baja' GROUP BY regional ORDER BY cantidad DESC LIMIT 7");
+$result_graf_regional = $conn->query("SELECT regional, COUNT(*) as cantidad FROM activos_tecnologicos WHERE regional IS NOT NULL AND regional != '' AND estado != 'Dado de Baja' GROUP BY regional ORDER BY cantidad DESC LIMIT 7");
 if ($result_graf_regional) {
-    while ($row = mysqli_fetch_assoc($result_graf_regional)) {
+    while ($row = $result_graf_regional->fetch_assoc()) {
         $labels_regional[] = $row['regional'];
         $data_regional[] = $row['cantidad'];
     }
 }
 
-// 7. Datos para Gráfico: Activos por Empresa (Operativos)
+// 7. Datos para Gráfico: Activos por Empresa
 $labels_empresa = [];
 $data_empresa = [];
-$result_graf_empresa = mysqli_query($conexion, "SELECT Empresa, COUNT(*) as cantidad FROM activos_tecnologicos WHERE Empresa IS NOT NULL AND Empresa != '' AND estado != 'Dado de Baja' GROUP BY Empresa ORDER BY cantidad DESC LIMIT 7");
+$result_graf_empresa = $conn->query("SELECT Empresa, COUNT(*) as cantidad FROM activos_tecnologicos WHERE Empresa IS NOT NULL AND Empresa != '' AND estado != 'Dado de Baja' GROUP BY Empresa ORDER BY cantidad DESC LIMIT 7");
 if ($result_graf_empresa) {
-    while ($row = mysqli_fetch_assoc($result_graf_empresa)) {
-        $labels_empresa[] = $row['Empresa']; 
+    while ($row = $result_graf_empresa->fetch_assoc()) {
+        $labels_empresa[] = $row['Empresa'];
         $data_empresa[] = $row['cantidad'];
     }
 }
 
-// 8. Últimos 5 Activos Registrados (Operativos)
+// 8. Últimos 5 Activos Registrados (estos no se filtran dinámicamente)
 $ultimos_activos = [];
-$result_ultimos = mysqli_query($conexion, "SELECT tipo_activo, marca, serie, fecha_registro, nombre FROM activos_tecnologicos WHERE estado != 'Dado de Baja' ORDER BY fecha_registro DESC, id DESC LIMIT 5");
+$result_ultimos = $conn->query("SELECT tipo_activo, marca, serie, fecha_registro, nombre FROM activos_tecnologicos WHERE estado != 'Dado de Baja' ORDER BY id DESC LIMIT 5");
 if ($result_ultimos) {
-    while($row = mysqli_fetch_assoc($result_ultimos)){ $ultimos_activos[] = $row; }
+    while($row = $result_ultimos->fetch_assoc()){ $ultimos_activos[] = $row; }
 }
 
-mysqli_close($conexion);
+function getEstadoColorClass($estado) {
+    $estadoLower = strtolower(trim($estado));
+    switch ($estadoLower) {
+        case 'bueno': return 'bg-success';
+        case 'regular': return 'bg-warning';
+        case 'malo': return 'bg-danger';
+        case 'en mantenimiento': return 'bg-info';
+        case 'disponible': case 'en stock': case 'nuevo': return 'bg-primary'; // 'nuevo' añadido
+        default: return 'bg-secondary';
+    }
+}
+
+$conn->close();
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -146,235 +170,241 @@ mysqli_close($conexion);
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
     <style>
-        
-        body { 
-            background-color: #ffffff !important; /* Fondo del body blanco */
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-top: 80px; /* Espacio para la barra superior fija */
-        }
-        .top-bar-custom {
-            position: fixed; /* Fija la barra en la parte superior */
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 1030; /* Asegura que esté por encima de otros elementos */
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem 1.5rem; /* Ajusta el padding según necesites */
-            background-color: #f8f9fa; /* Un color de fondo claro para la barra */
-            border-bottom: 1px solid #dee2e6;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .logo-container-top img {
-            width: auto; /* Ancho automático */
-            height: 75px; /* Altura fija para el logo en la barra */
-            object-fit: contain;
-            margin-right: 15px; /* Espacio a la derecha del logo */
-        }
-        .user-info-top {
-            font-size: 0.9rem;
-        }
-        /* Estilos específicos del Dashboard */
-        .kpi-card { background-color: #fff; border-radius: 0.5rem; padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,0.075); text-align: center; min-height: 130px; display: flex; flex-direction: column; justify-content: center; border: 1px solid #e9ecef; }
-        .kpi-card .kpi-value { font-size: 2rem; font-weight: 700; color: #191970; line-height:1.2; }
-        .kpi-card .kpi-label { font-size: 0.85rem; color: #6c757d; margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.5px; }
-        .kpi-card .kpi-subtext { font-size: 0.9em; color: #555; margin-top: 4px;}
-        
-        .chart-container { background-color: #fff; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 10px rgba(0,0,0,0.075); border: 1px solid #e9ecef; }
+        body { background-color: #f0f2f5 !important; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding-top: 90px; }
+        .top-bar-custom { position: fixed; top: 0; left: 0; right: 0; z-index: 1030; display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1.5rem; background-color: #f8f9fa; border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .logo-container-top img { width: auto; height: 75px; object-fit: contain; }
+        .user-info-top { font-size: 0.9rem; color: #333; }
+        .kpi-card { background-color: #fff; border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: none; display: flex; flex-direction: column; justify-content: center; min-height: 140px; }
+        .kpi-card .kpi-icon { font-size: 2rem; color: #191970; margin-bottom: 0.5rem; }
+        .kpi-card .kpi-value { font-size: 2.25rem; font-weight: 700; color: #1a253c; line-height:1.2; }
+        .kpi-card .kpi-label { font-size: 0.9rem; color: #6c757d; margin-top: 0.25rem; }
+        .chart-container { background-color: #fff; border-radius: 0.75rem; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: none; }
         .chart-container h5 { margin-bottom: 1rem; text-align: center; color: #343a40; font-weight: 600;}
         .chart-canvas-wrapper { position: relative; height: 280px; width: 100%; }
-
-        .status-list-group .list-group-item { display: flex; justify-content: space-between; align-items: center; border-color: #e9ecef; padding: 0.5rem 0.8rem; font-size: 0.85em; }
-        .status-list-group .badge { font-size: 0.85em; }
-        .table-recent-assets { font-size: 0.88rem;}
-        .table-recent-assets th { background-color: #f0f2f5; font-weight: 600; color: #343a40; padding: 0.6rem 0.75rem;}
-        .table-recent-assets td { padding: 0.6rem 0.75rem; vertical-align: middle;}
-        .page-header-title { color: #191970; }
+        .status-progress-item { margin-bottom: 0.8rem; } .status-progress-item:last-child { margin-bottom: 0; }
+        .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; font-size: 0.85em; }
+        .status-label { font-weight: 500; color: #495057; } .status-count { font-weight: 600; color: #343a40; }
+        .page-header-title { color: #191970; font-weight: 600; cursor: pointer; } /* Añadido cursor pointer */
+        .filter-info { font-size: 0.9em; color: #6c757d; margin-bottom: 1rem; text-align: center; }
     </style>
 </head>
 <body>
+
+<?php
+$pagina_actual = basename($_SERVER['PHP_SELF']);
+$nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
+$rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
+?>
 <div class="top-bar-custom">
-        <div class="logo-container-top">
-            <a href="menu.php" title="Ir a Inicio">
-                <img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS">
-            </a>
-        </div>
-        <div class="d-flex align-items-center">
-            <span class="text-dark me-3 user-info-top">
-                <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?> 
-                (<?= htmlspecialchars(ucfirst($rol_usuario_actual_sesion)) ?>)
-            </span>
-            <form action="logout.php" method="post" class="d-flex">
-                <button class="btn btn-outline-danger btn-sm" type="submit"><i class="bi bi-box-arrow-right"></i> Cerrar sesión</button>
-            </form>
-        </div>
+    <div class="logo-container-top">
+        <a href="menu.php" title="Ir al Menú Principal"> <img src="imagenes/logo.png" alt="Logo Empresa"> </a>
     </div>
+    <div class="d-flex align-items-center">
+        <span class="text-dark me-3 user-info-top">
+            <i class="bi bi-person-circle"></i> <?php echo htmlspecialchars($nombre_usuario_actual_sesion); ?>
+            (<?php echo htmlspecialchars(ucfirst($rol_usuario_actual_sesion)); ?>)
+        </span>
+        <form action="logout.php" method="post" class="d-flex">
+            <button class="btn btn-outline-danger btn-sm" type="submit"><i class="bi bi-box-arrow-right"></i> Salir</button>
+        </form>
+    </div>
+</div>
 
-<div class="container-fluid mt-4 px-md-4 px-2"> 
-    <h3 class="mb-4 text-center page-header-title">Dashboard de Activos Tecnológicos</h3>
+<div class="container-fluid mt-4 px-lg-4 px-2"> 
+    <h3 class="mb-1 page-header-title" id="dashboardTitle">Resumen del Inventario</h3>
+    <div class="filter-info" id="filterInfoMessage" style="display: none;">Filtrando por: <strong id="currentFilterValue"></strong> <button class="btn btn-sm btn-link p-0" id="resetFilterBtn">(Limpiar)</button></div>
+
 
     <div class="row">
-        <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12 mb-4"> 
-            <div class="kpi-card">
-                <div class="kpi-value"><?= $total_activos ?></div>
-                <div class="kpi-label">Total Activos (Operativos)</div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12 mb-4"> 
-            <div class="kpi-card">
-                <div class="kpi-value"><?= $total_usuarios_con_activos ?></div>
-                <div class="kpi-label">Usuarios con Activos</div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12 mb-4"> 
-            <div class="kpi-card">
-                <div class="kpi-value" style="font-size: 1.4rem; margin-bottom: 0.1rem; line-height:1.3;"><?= htmlspecialchars($kpi_mejor_tipo_activo_nombre) ?></div>
-                <div class="kpi-label">Tipo Activo Mejor Calificado</div>
-                <div class="kpi-subtext"><?= displayStars($kpi_mejor_tipo_activo_rating_avg) ?></div>
-            </div>
-        </div>
-        <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12 mb-4"> 
-            <div class="kpi-card" style="padding: 1rem;"> 
-                <div class="kpi-label" style="margin-bottom:0.3rem; font-size:0.9rem; color: #343a40;">Top Estados de Activos</div>
-                   <ul class="list-group list-group-flush status-list-group text-start" style="font-size: 0.85em;">
-                        <?php if (!empty($activos_por_estado_data_kpi)): $count_kpi_estado = 0; ?>
-                            <?php foreach ($activos_por_estado_data_kpi as $estado_info): if(++$count_kpi_estado > 3) break; ?>
-                                <li class="list-group-item">
-                                    <?= htmlspecialchars($estado_info['estado']) ?>
-                                    <span class="badge rounded-pill bg-primary"><?= $estado_info['cantidad'] ?></span>
-                                </li>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <li class="list-group-item text-muted">N/A</li>
-                        <?php endif; ?>
-                   </ul>
+        <div class="col-xl-3 col-md-6 mb-4"> <div class="kpi-card text-center"> <div class="kpi-icon"><i class="bi bi-laptop"></i></div> <div class="kpi-value" id="kpiTotalActivos"><?php echo $total_activos; ?></div> <div class="kpi-label">Activos Operativos</div> </div> </div>
+        <div class="col-xl-3 col-md-6 mb-4"> <div class="kpi-card text-center"> <div class="kpi-icon"><i class="bi bi-cash-coin"></i></div> <div class="kpi-value" id="kpiValorTotal" style="font-size: 1.8rem;">$<?php echo number_format($valor_total_inventario, 0, ',', '.'); ?></div> <div class="kpi-label">Valor Total Inventario</div> </div> </div>
+        <div class="col-xl-3 col-md-6 mb-4"> <div class="kpi-card text-center"> <div class="kpi-icon"><i class="bi bi-people-fill"></i></div> <div class="kpi-value" id="kpiTotalUsuarios"><?php echo $total_usuarios_con_activos; ?></div> <div class="kpi-label">Usuarios con Activos</div> </div> </div>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="kpi-card" style="padding: 1.25rem 1.5rem;">
+                <div class="kpi-label text-center" style="margin-top: 0; margin-bottom: 1rem; font-weight: 600;">Estado General Activos</div>
+                <div id="kpiEstadoGeneralContainer">
+                    <?php /* El contenido se generará por PHP y se actualizará por JS */ ?>
+                </div>
             </div>
         </div>
     </div>
 
     <div class="row">
-        <div class="col-lg-4 col-md-12 mb-4"> 
-            <div class="chart-container">
-                <h5>Activos por Tipo (Top <?= $limit_tipos ?>)</h5>
-                <div class="chart-canvas-wrapper">
-                    <canvas id="graficoTipoActivo"></canvas>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-4 col-md-6 mb-4"> 
-            <div class="chart-container">
-                <h5>Activos por Regional (Top 7)</h5>
-                   <div class="chart-canvas-wrapper">
-                    <canvas id="graficoRegional"></canvas>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-4 col-md-6 mb-4"> 
-            <div class="chart-container">
-                <h5>Activos por Empresa (Top 7)</h5>
-                <div class="chart-canvas-wrapper">
-                    <canvas id="graficoEmpresa"></canvas>
-                </div>
-            </div>
-        </div>
+        <div class="col-lg-4 mb-4"> <div class="chart-container"> <h5>Activos por Tipo (Top 7)</h5> <div class="chart-canvas-wrapper"><canvas id="graficoTipoActivo"></canvas></div> </div> </div>
+        <div class="col-lg-4 mb-4"> <div class="chart-container"> <h5>Activos por Regional (Top 7)</h5> <div class="chart-canvas-wrapper"><canvas id="graficoRegional"></canvas></div> </div> </div>
+        <div class="col-lg-4 mb-4"> <div class="chart-container"> <h5>Activos por Empresa (Top 7)</h5> <div class="chart-canvas-wrapper"><canvas id="graficoEmpresa"></canvas></div> </div> </div>
     </div>
     
-    <?php if(!empty($ultimos_activos)): ?>
-    <div class="row mt-2">
-        <div class="col-12">
-            <div class="chart-container"> 
-                <h5>Últimos Activos Registrados (Operativos)</h5>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover table-recent-assets">
-                        <thead>
-                            <tr>
-                                <th>Responsable (Nombre)</th>
-                                <th>Tipo Activo</th>
-                                <th>Marca</th>
-                                <th>Serie</th>
-                                <th>Fecha Registro</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach($ultimos_activos as $ua): ?>
-                            <tr>
-                                <td><?= htmlspecialchars($ua['nombre']) ?></td>
-                                <td><?= htmlspecialchars($ua['tipo_activo']) ?></td>
-                                <td><?= htmlspecialchars($ua['marca']) ?></td>
-                                <td><?= htmlspecialchars($ua['serie']) ?></td>
-                                <td><?= htmlspecialchars(date("d/m/Y H:i", strtotime($ua['fecha_registro']))) ?></td>
-                            </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-
+    <?php if(!empty($ultimos_activos)): ?> <div class="row mt-2"> <div class="col-12"> <div class="chart-container">  <h5><i class="bi bi-clock-history"></i> Últimos Activos Registrados</h5> <div class="table-responsive"> <table class="table table-sm table-hover"> <thead><tr><th>Responsable</th><th>Tipo Activo</th><th>Marca</th><th>Serie</th><th>Fecha Registro</th></tr></thead> <tbody><?php foreach($ultimos_activos as $ua): ?><tr><td><?php echo htmlspecialchars($ua['nombre']); ?></td><td><?php echo htmlspecialchars($ua['tipo_activo']); ?></td><td><?php echo htmlspecialchars($ua['marca']); ?></td><td><?php echo htmlspecialchars($ua['serie']); ?></td><td><?php echo htmlspecialchars(date("d/m/Y", strtotime($ua['fecha_registro']))); ?></td></tr><?php endforeach; ?></tbody> </table> </div> </div> </div> </div> <?php endif; ?>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const defaultChartColors = [
-        'rgba(25, 25, 112, 0.8)','rgba(70, 130, 180, 0.8)','rgba(100, 149, 237, 0.8)',
-        'rgba(173, 216, 230, 0.8)','rgba(119, 136, 153, 0.8)','rgba(128, 128, 128, 0.8)','rgba(192, 192, 192, 0.8)'
-    ];
-    const defaultBorderColors = defaultChartColors.map(color => color.replace('0.8', '1'));
+    const defaultChartColors = [ '#191970', '#4682B4', '#6495ED', '#B0C4DE', '#778899', '#708090', '#C0C0C0' ];
+    const kpiEstadoGeneralContainer = document.getElementById('kpiEstadoGeneralContainer');
+    const kpiTotalActivosEl = document.getElementById('kpiTotalActivos');
+    const kpiValorTotalEl = document.getElementById('kpiValorTotal');
+    const kpiTotalUsuariosEl = document.getElementById('kpiTotalUsuarios');
+    const filterInfoMessageEl = document.getElementById('filterInfoMessage');
+    const currentFilterValueEl = document.getElementById('currentFilterValue');
+    const resetFilterBtn = document.getElementById('resetFilterBtn');
+    const dashboardTitleEl = document.getElementById('dashboardTitle');
 
-    const labelsTipo = <?= json_encode($labels_tipo_activo_new) ?>;
-    const dataTipoTotal = <?= json_encode($data_tipo_activo_total) ?>;
-    const detailedStatusData = <?= json_encode($detailed_status_data_for_tooltip) ?>;
+    // Función para renderizar los KPIs de estado general
+    function renderEstadoGeneralKPI(estadosData, totalActivosFiltrados) {
+        kpiEstadoGeneralContainer.innerHTML = ''; // Limpiar
+        if (estadosData && estadosData.length > 0) {
+            let count = 0;
+            estadosData.forEach(estadoInfo => {
+                if (++count > 3 && estadosData.length > 4) return; // Mostrar solo top 3 o todos si son 3 o menos
+                const cantidad = parseInt(estadoInfo.cantidad);
+                const estado = estadoInfo.estado;
+                const porcentaje = (totalActivosFiltrados > 0) ? Math.round((cantidad / totalActivosFiltrados) * 100) : 0;
+                const colorClass = getEstadoColorClassJS(estado);
 
-    if (document.getElementById('graficoTipoActivo') && labelsTipo.length > 0 && dataTipoTotal.length > 0) {
-        const maxDataValueTipo = Math.max(...dataTipoTotal);
-        new Chart(document.getElementById('graficoTipoActivo'), {
-            type: 'bar', 
-            data: { labels: labelsTipo, datasets: [{ label: 'Cantidad Total', data: dataTipoTotal, backgroundColor: defaultChartColors, borderColor: defaultBorderColors, borderWidth: 1 }] },
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'status-progress-item';
+                itemDiv.innerHTML = `
+                    <div class="status-header">
+                        <span class="status-label">${escapeHtml(estado)}</span>
+                        <span class="status-count">${cantidad}</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar ${colorClass}" role="progressbar" style="width: ${porcentaje}%;" aria-valuenow="${porcentaje}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                `;
+                kpiEstadoGeneralContainer.appendChild(itemDiv);
+            });
+        } else {
+            kpiEstadoGeneralContainer.innerHTML = '<p class="text-muted text-center">No hay datos de estado.</p>';
+        }
+    }
+    
+    // Función para escapar HTML en JS (simple)
+    function escapeHtml(unsafe) {
+        if (unsafe === null || typeof unsafe === 'undefined') return '';
+        return unsafe
+             .toString()
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+
+    // Función JS para obtener clase de color (similar a la de PHP)
+    function getEstadoColorClassJS(estado) {
+        if (!estado) return 'bg-secondary';
+        const estadoLower = estado.toLowerCase().trim();
+        switch (estadoLower) {
+            case 'bueno': return 'bg-success';
+            case 'regular': return 'bg-warning';
+            case 'malo': return 'bg-danger';
+            case 'en mantenimiento': return 'bg-info';
+            case 'disponible': case 'en stock': case 'nuevo': return 'bg-primary';
+            default: return 'bg-secondary';
+        }
+    }
+    
+    // Cargar estado general inicial (ya que se movió de PHP a JS)
+    renderEstadoGeneralKPI(<?php echo json_encode($activos_por_estado_data_kpi); ?>, <?php echo $total_activos; ?>);
+
+
+    // Función para actualizar los KPIs
+    function updateKPIs(filterType = null, filterValue = null) {
+        let url = 'dashboard.php?ajax=1';
+        if (filterType && filterValue) {
+            url += `&filtro_${filterType}=${encodeURIComponent(filterValue)}`;
+            filterInfoMessageEl.style.display = 'block';
+            currentFilterValueEl.textContent = `${filterType.charAt(0).toUpperCase() + filterType.slice(1)}: ${filterValue}`;
+        } else {
+            filterInfoMessageEl.style.display = 'none';
+        }
+
+        // Mostrar algún indicador de carga (opcional, más avanzado)
+        kpiTotalActivosEl.textContent = '...';
+        kpiValorTotalEl.textContent = '...';
+        kpiTotalUsuariosEl.textContent = '...';
+        kpiEstadoGeneralContainer.innerHTML = '<p class="text-muted text-center">Cargando...</p>';
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                kpiTotalActivosEl.textContent = data.total_activos;
+                kpiValorTotalEl.textContent = '$' + parseFloat(data.valor_total_inventario).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+                kpiTotalUsuariosEl.textContent = data.total_usuarios_con_activos;
+                renderEstadoGeneralKPI(data.activos_por_estado_data_kpi, data.total_activos);
+            })
+            .catch(error => {
+                console.error('Error al actualizar KPIs:', error);
+                filterInfoMessageEl.style.display = 'block';
+                currentFilterValueEl.textContent = `Error al cargar datos filtrados.`;
+                // Opcional: revertir a los datos originales o mostrar un mensaje de error en los KPIs
+            });
+    }
+    
+    // Event listener para limpiar filtros
+    if(resetFilterBtn) resetFilterBtn.addEventListener('click', () => updateKPIs());
+    if(dashboardTitleEl) dashboardTitleEl.addEventListener('click', () => updateKPIs());
+
+
+    // Función para manejar clic en gráficos
+    function handleChartClick(event, elements, chartInstance, filterType) {
+        if (elements.length > 0) {
+            const clickedElementIndex = elements[0].index;
+            const filterValue = chartInstance.data.labels[clickedElementIndex];
+            updateKPIs(filterType, filterValue);
+        }
+    }
+
+    // Configuración Gráfico: Activos por Tipo
+    const labelsTipo = <?php echo json_encode($labels_tipo_activo); ?>; 
+    const dataTipo = <?php echo json_encode($data_tipo_activo); ?>;
+    const ctxTipo = document.getElementById('graficoTipoActivo');
+    if (ctxTipo && labelsTipo.length > 0) {
+        const graficoTipoActivo = new Chart(ctxTipo, {
+            type: 'bar',
+            data: { labels: labelsTipo, datasets: [{ label: 'Cantidad', data: dataTipo, backgroundColor: defaultChartColors }] },
             options: {
-                responsive: true, maintainAspectRatio: false,
-                scales: { y: { beginAtZero: true, ticks: { stepSize: Math.max(1, Math.ceil(maxDataValueTipo / 8)) || 1, precision: 0 } } },
-                plugins: { 
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) { let tipoActivo = context.label; let total = context.parsed.y; return `${tipoActivo}: ${total} (Total)`; },
-                            footer: function(tooltipItems) {
-                                const tipoActivo = tooltipItems[0].label; const statuses = detailedStatusData[tipoActivo]; let footerLines = [];
-                                if (statuses) { footerLines.push(''); for (const estado in statuses) { if (statuses.hasOwnProperty(estado)) { footerLines.push(`${estado}: ${statuses[estado]}`); } } }
-                                return footerLines;
-                            }
-                        }
-                    }
-                } 
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                onClick: (event, elements) => handleChartClick(event, elements, graficoTipoActivo, 'tipo_activo')
             }
         });
     }
-
-    const labelsRegional = <?= json_encode($labels_regional) ?>;
-    const dataRegional = <?= json_encode($data_regional) ?>;
-    if (document.getElementById('graficoRegional') && labelsRegional.length > 0 && dataRegional.length > 0) {
-        new Chart(document.getElementById('graficoRegional'), {
-            type: 'doughnut',
-            data: { labels: labelsRegional, datasets: [{ label: 'Activos', data: dataRegional, backgroundColor: defaultChartColors, borderColor: '#fff', borderWidth: 2, hoverOffset: 4 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 15, boxWidth: 12 } } } }
+    
+    // Configuración Gráfico: Activos por Regional
+    const labelsRegional = <?php echo json_encode($labels_regional); ?>; 
+    const dataRegional = <?php echo json_encode($data_regional); ?>;
+    const ctxRegional = document.getElementById('graficoRegional');
+    if (ctxRegional && labelsRegional.length > 0) {
+        const graficoRegional = new Chart(ctxRegional, {
+            type: 'bar',
+            data: { labels: labelsRegional, datasets: [{ label: 'Cantidad', data: dataRegional, backgroundColor: defaultChartColors[1] }] }, // Usar un color diferente
+            options: {
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                onClick: (event, elements) => handleChartClick(event, elements, graficoRegional, 'regional')
+            }
         });
     }
-
-    const labelsEmpresa = <?= json_encode($labels_empresa) ?>;
-    const dataEmpresa = <?= json_encode($data_empresa) ?>;
-    if (document.getElementById('graficoEmpresa') && labelsEmpresa.length > 0 && dataEmpresa.length > 0) {
-        new Chart(document.getElementById('graficoEmpresa'), {
-            type: 'pie', 
-            data: { labels: labelsEmpresa, datasets: [{ label: 'Activos', data: dataEmpresa, backgroundColor: defaultChartColors, borderColor: '#fff', borderWidth: 2, hoverOffset: 4 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 15, boxWidth: 12 } } } }
+    
+    // Configuración Gráfico: Activos por Empresa
+    const labelsEmpresa = <?php echo json_encode($labels_empresa); ?>; 
+    const dataEmpresa = <?php echo json_encode($data_empresa); ?>;
+    const ctxEmpresa = document.getElementById('graficoEmpresa');
+    if (ctxEmpresa && labelsEmpresa.length > 0) {
+        const graficoEmpresa = new Chart(ctxEmpresa, {
+            type: 'pie',
+            data: { labels: labelsEmpresa, datasets: [{ label: 'Activos', data: dataEmpresa, backgroundColor: defaultChartColors, borderColor: '#fff', borderWidth: 2 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },
+                onClick: (event, elements) => handleChartClick(event, elements, graficoEmpresa, 'empresa')
+            }
         });
     }
 });
 </script>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

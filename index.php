@@ -14,13 +14,13 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 // Definición de opciones para los selects del formulario
 $regionales = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional'];
 $empresas_disponibles = ['Arpesod', 'Finansueños'];
-$opciones_tipo_activo = ['Computador', 'Monitor', 'Impresora', 'Escáner', 'DVR', 'Contadora Billetes', 'Contadora Monedas', 'Celular', 'Impresora Térmica', 'Combo Teclado y Mouse', 'Diadema', 'Adaptador Multipuertos / Red', 'Router', 'Otro'];
-$opciones_tipo_equipo = ['Portátil', 'Mesa', 'Todo en 1', 'N/A'];
-$opciones_red = ['Cableada', 'Inalámbrica', 'Ambas', 'N/A'];
+$opciones_tipo_activo = ['Computador', 'Monitor', 'Impresora', 'Escáner', 'DVR', 'Contadora Billetes', 'Contadora Monedas', 'Celular', 'Impresora Térmica', 'Combo Teclado y Mouse', 'Diadema', 'Hub Multipuertos/Red', 'Telefono', 'Router', 'Otro'];
+$opciones_tipo_equipo = ['Portátil', 'Mesa', 'Todo en 1'];
+$opciones_red = ['Cableada', 'Inalámbrica', 'Ambas'];
 $opciones_estado_general = ['Bueno', 'Regular', 'Malo', 'Nuevo'];
-$opciones_so = ['Windows 10', 'Windows 11', 'Linux', 'MacOS', 'Otro SO', 'N/A SO'];
-$opciones_offimatica = ['Office 365', 'Office Home And Business', 'Office 2021', 'Office 2019', 'Office 2016', 'LibreOffice', 'Google Workspace', 'Otro Office', 'N/A Office'];
-$opciones_antivirus = ['Microsoft Defender', 'Bitdefender', 'ESET NOD32 Antivirus', 'McAfee Total Protection', 'Kaspersky', 'N/A Antivirus', 'Otro Antivirus'];
+$opciones_so = ['Windows 10', 'Windows 11', 'Linux', 'MacOS'];
+$opciones_offimatica = ['Office 365', 'Office Home And Business', 'Office 2021', 'Office 2019', 'Office 2016', 'LibreOffice', 'Google Workspace'];
+$opciones_antivirus = ['Microsoft Defender', 'Bitdefender', 'ESET NOD32 Antivirus', 'McAfee Total Protection', 'Kaspersky'];
 $aplicaciones_mas_usadas = ['Manager', 'Excel', 'Word', 'Power Point', 'WhatsApp Web', 'Siesa', 'Finansueños', 'Correo', 'Internet', 'Otros'];
 
 $mensaje_global = $_SESSION['mensaje_global'] ?? null;

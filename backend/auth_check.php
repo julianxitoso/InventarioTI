@@ -4,9 +4,7 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 
 function verificar_sesion_activa() {
-    if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true || !isset($_SESSION['usuario_id'])) { // Verificación más robusta
-        // Guardar la URL solicitada para redirigir después del login
-        // $_SESSION['redirect_url'] = $_SERVER['REQUEST_URI']; // Opcional
+    if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true || !isset($_SESSION['usuario_id'])) {
         header("Location: login.php?error=sesion_requerida");
         exit;
     }
@@ -28,34 +26,36 @@ function es_auditor() {
     return obtener_rol_usuario() === 'auditor';
 }
 
-function es_registrador() { // <<< Nueva función helper
+function es_registrador() {
     return obtener_rol_usuario() === 'registrador';
 }
 
 // Definición centralizada de permisos por rol
-// Esto puede estar aquí o en un archivo de configuración separado si crece mucho
 $GLOBALS['config_permisos_roles'] = [
     'admin' => [
-        'ver_menu', 'ver_dashboard', 'buscar_activo', 'ver_historial', 
-        'generar_informes', 'crear_activo', 'editar_activo_detalles', 
-        'trasladar_activo', 'dar_baja_activo', 'eliminar_activo_fisico', 
-        'gestionar_usuarios' // Para acceder a registrar_usuario.php
+        'ver_menu', 'ver_dashboard', 'buscar_activo', 'ver_historial',
+        'generar_informes', 'crear_activo', 'editar_activo_detalles',
+        'trasladar_activo', 'dar_baja_activo', 'eliminar_activo_fisico',
+        'gestionar_usuarios',
+        'ver_depreciacion',         // Permiso para ver módulo de depreciación
+        'registrar_mantenimiento'   // <<< NUEVO PERMISO AÑADIDO AQUÍ
     ],
     'tecnico' => [
-        'ver_menu', 'ver_dashboard', // O un dashboard limitado
-        'buscar_activo', 'ver_historial', 'crear_activo', 
+        'ver_menu', 'ver_dashboard',
+        'buscar_activo', 'ver_historial', 'crear_activo',
         'editar_activo_detalles', 'trasladar_activo', 'dar_baja_activo',
-        'generar_informes' // Técnicos usualmente pueden necesitar generar informes
+        'generar_informes',
+        'registrar_mantenimiento'   // <<< NUEVO PERMISO AÑADIDO AQUÍ
     ],
     'auditor' => [
-        'ver_menu', 'ver_dashboard', // O un dashboard de solo lectura
-        'buscar_activo', 'ver_historial', 'generar_informes'
+        'ver_menu', 'ver_dashboard',
+        'buscar_activo', 'ver_historial', 'generar_informes',
+        'ver_depreciacion'         // Auditores también podrían ver depreciación
     ],
-    'registrador' => [ // <<< PERMISOS ESPECÍFICOS PARA EL ROL REGISTRADOR
-        'ver_menu',       // Para poder ver el menú y sus opciones limitadas
-        'crear_activo',   // Permiso para acceder a index.php (registrar) y guardar_activo.php
-        'buscar_activo'   // Permiso para acceder a buscar.php
-        // 'ver_historial' // Opcional: Si quieres que puedan ver el historial de los activos que buscan
+    'registrador' => [
+        'ver_menu',
+        'crear_activo',
+        'buscar_activo'
     ]
 ];
 
@@ -63,7 +63,7 @@ function tiene_permiso_para($accion) {
     $rol = obtener_rol_usuario();
     if (!$rol) return false;
 
-    global $config_permisos_roles; // Acceder al array global
+    global $config_permisos_roles;
 
     if (isset($config_permisos_roles[$rol]) && in_array($accion, $config_permisos_roles[$rol])) {
         return true;
@@ -72,14 +72,13 @@ function tiene_permiso_para($accion) {
 }
 
 function restringir_acceso_pagina($roles_o_permisos_permitidos = []) {
-    verificar_sesion_activa(); // Primero asegura que hay sesión
+    verificar_sesion_activa();
     
-    if (empty($roles_o_permisos_permitidos)) { // Si no se especifican, solo se requiere estar logueado
+    if (empty($roles_o_permisos_permitidos)) {
         return;
     }
 
     $acceso_concedido = false;
-    // Verificar si el primer elemento es un rol conocido, si no, asumir que son permisos
     $primer_elemento = $roles_o_permisos_permitidos[0] ?? null;
     $es_lista_de_roles = in_array($primer_elemento, ['admin', 'tecnico', 'auditor', 'registrador']);
 
@@ -88,12 +87,11 @@ function restringir_acceso_pagina($roles_o_permisos_permitidos = []) {
         if (in_array($rol_actual, $roles_o_permisos_permitidos)) {
             $acceso_concedido = true;
         }
-    } else { // Asumir que es una lista de permisos de acción
+    } else {
         foreach ($roles_o_permisos_permitidos as $permiso_requerido) {
             if (tiene_permiso_para($permiso_requerido)) {
                 $acceso_concedido = true;
-                break; // Si tiene al menos uno de los permisos requeridos (lógica OR)
-                       // Si necesitas que tenga TODOS los permisos, cambia esta lógica
+                break; 
             }
         }
     }

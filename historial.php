@@ -195,7 +195,7 @@ $conexion->close();
                         <p class="mb-1"><strong>Responsable Actual:</strong> <?= htmlspecialchars($activo_info['nombre_responsable'] ?? 'N/A') ?></p>
                         <p class="mb-1"><strong>C.C. Responsable:</strong> <?= htmlspecialchars($activo_info['cedula_responsable'] ?? 'N/A') ?></p>
                         <p class="mb-1"><strong>Regional Actual:</strong> <?= htmlspecialchars($activo_info['regional'] ?? 'N/A') ?></p>
-                        <p class="mb-0"><strong>Empresa:</strong> <?= htmlspecialchars($activo_info['Empresa'] ?? ($activo_info['empresa'] ?? 'N/A')) ?></p> {/* Muestra la Empresa */}
+                        <p class="mb-0"><strong>Empresa:</strong> <?= htmlspecialchars($activo_info['Empresa'] ?? ($activo_info['empresa'] ?? 'N/A')) ?></p> 
                     </div>
                 </div>
             </div>
