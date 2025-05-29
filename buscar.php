@@ -1,7 +1,5 @@
 <?php
-// session_start(); // auth_check.php ya lo incluye y gestiona
 require_once 'backend/auth_check.php';
-// Todos los roles autenticados (admin, tecnico, auditor, registrador) pueden acceder a buscar
 restringir_acceso_pagina(['admin', 'tecnico', 'auditor', 'registrador']);
 
 require_once 'backend/db.php';
@@ -12,57 +10,69 @@ if (!isset($conexion) || !$conexion || (method_exists($conexion, 'connect_error'
 }
 $conexion->set_charset("utf8mb4");
 
-// Captura de datos de sesión para la barra superior
 $nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
 $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
-
 $cedula_buscada = trim($_GET['cedula'] ?? '');
-$regional_buscada = trim($_GET['regional'] ?? '');
-$empresa_buscada = trim($_GET['empresa'] ?? '');
+$regional_buscada = trim($_GET['regional'] ?? ''); // Ahora se refiere a la regional del usuario
+$empresa_buscada = trim($_GET['empresa'] ?? '');   // Ahora se refiere a la empresa del usuario
 $incluir_dados_baja = isset($_GET['incluir_bajas']) && $_GET['incluir_bajas'] === '1';
 $buscar_todos_flag = isset($_GET['buscar_todos']) && $_GET['buscar_todos'] === '1';
 
 $activos_encontrados = [];
 $regionales = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional']; 
 $empresas_disponibles = ['Arpesod', 'Finansueños'];
-
+$error_consulta = "";
 $criterio_busqueda_activo = false;
-
-// $nombre_usuario_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario'; // Ya se definió arriba
-// $rol_usuario_sesion = obtener_rol_usuario(); // Ya se definió arriba como $rol_usuario_actual_sesion
 
 if (!empty($cedula_buscada) || !empty($regional_buscada) || !empty($empresa_buscada) || $buscar_todos_flag) {
     $criterio_busqueda_activo = true;
-    $sql = "SELECT * FROM activos_tecnologicos WHERE 1=1";
+    
+    $sql = "SELECT 
+                a.*, 
+                u.usuario AS cedula_responsable,
+                u.nombre_completo AS nombre_responsable,
+                c.nombre_cargo AS cargo_responsable,
+                u.regional AS regional_responsable,
+                u.empresa AS empresa_del_responsable,
+                ta.nombre_tipo_activo
+            FROM 
+                activos_tecnologicos a
+            LEFT JOIN 
+                usuarios u ON a.id_usuario_responsable = u.id
+            LEFT JOIN 
+                tipos_activo ta ON a.id_tipo_activo = ta.id_tipo_activo
+            LEFT JOIN 
+                cargos c ON u.id_cargo = c.id_cargo
+            WHERE 1=1";
+    
     $params = [];
     $types = '';
 
     if (!$incluir_dados_baja) {
-        $sql .= " AND estado != 'Dado de Baja'";
+        $sql .= " AND a.estado != 'Dado de Baja'";
     }
 
     if (!empty($cedula_buscada)) {
-        $sql .= " AND cedula = ?";
+        $sql .= " AND u.usuario = ?";
         $params[] = $cedula_buscada;
         $types .= 's';
     }
+    // --- CAMBIO: Filtro por regional del usuario ---
     if (!empty($regional_buscada)) {
-        $sql .= " AND regional = ?";
+        $sql .= " AND u.regional = ?";
         $params[] = $regional_buscada;
         $types .= 's';
     }
+    // --- CAMBIO: Filtro por empresa del usuario ---
     if (!empty($empresa_buscada)) {
-        // Asumiendo que la columna es 'Empresa' basado en depuraciones previas.
-        // Si es 'empresa' (minúscula) en tu BD, cambia aquí.
-        $sql .= " AND Empresa = ?"; 
+        $sql .= " AND u.empresa = ?"; 
         $params[] = $empresa_buscada;
         $types .= 's';
     }
-    $sql .= " ORDER BY nombre ASC, cedula ASC, id ASC";
+    $sql .= " ORDER BY u.nombre_completo ASC, u.usuario ASC, a.id ASC";
 
     $stmt = $conexion->prepare($sql);
-    $error_consulta = "";
     if ($stmt) {
         if (!empty($params)) {
             $stmt->bind_param($types, ...$params);
@@ -101,38 +111,22 @@ function getEstadoBadgeClass($estado) {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         body { 
-            background-color: #ffffff !important; /* Fondo del body blanco */
+            background-color: #ffffff !important;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-top: 80px; /* Espacio para la barra superior fija */
+            padding-top: 80px; 
         }
         .top-bar-custom {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 1030;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem 1.5rem;
-            background-color: #f8f9fa; 
-            border-bottom: 1px solid #dee2e6;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1030;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.5rem 1.5rem; background-color: #f8f9fa; 
+            border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
-        .logo-container-top img {
-            width: auto;
-            height: 75px;
-            object-fit: contain;
-            margin-right: 15px;
-        }
-        .user-info-top {
-            font-size: 0.9rem;
-        }
-        /* Estilos existentes de buscar.php (ajustados o mantenidos) */
-        .container-main { margin-top: 20px; margin-bottom: 40px;} /* Este margin-top podría ser innecesario con padding-top en body */
+        .logo-container-top img { width: auto; height: 75px; object-fit: contain; margin-right: 15px; }
+        .user-info-top { font-size: 0.9rem; }
+        .container-main { margin-top: 20px; margin-bottom: 40px;}
         h3.page-title { color: #333; font-weight: 600; margin-bottom: 25px; }
         .btn-custom-search { background-color: #191970; color: white; }
-        .btn-custom-search:hover { background-color: #8b0000; color: white; }
+        .btn-custom-search:hover { background-color: #11114e; color: white; }
         .table-minimalist { border-collapse: collapse; width: 100%; margin-top: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-radius: 6px; overflow: hidden; font-size: 0.85rem; }
         .table-minimalist thead th { background-color: #343a40; color: #fff; font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 0; white-space: nowrap; }
         .table-minimalist tbody td { padding: 9px 12px; border-bottom: 1px solid #e9ecef; color: #495057; vertical-align: middle; }
@@ -144,23 +138,21 @@ function getEstadoBadgeClass($estado) {
         .user-asset-group { background-color: #fff; padding: 20px; margin-bottom: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
         .user-info-header { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
         .user-info-header .info-block { flex-grow: 1; min-width: 250px; }
-        .user-info-header .info-block h4 { color: #37517e; font-weight: 600; margin-bottom: 2px; font-size: 1.1rem;}
+        .user-info-header .info-block h4 { color: #191970; font-weight: 600; margin-bottom: 2px; font-size: 1.1rem;}
         .user-info-header .info-block p { margin-bottom: 2px; font-size: 0.9rem; color: #555; }
         .user-info-header .actions-block { margin-top: 10px; md-margin-top: 0;}
         .asset-item-number { font-weight: bold; min-width: 25px; display: inline-block; text-align: right; margin-right: 5px;}
         .form-label { font-weight: 500; color: #495057; }
         .card.search-card { box-shadow: 0 2px 8px rgba(0,0,0,0.06); border:none; }
         .table-responsive { margin-top: 10px; }
-        .page-header-title { color: #191970; } /* Para el título principal de la página */
+        .page-header-title { color: #191970; }
     </style>
 </head>
 <body>
 
 <div class="top-bar-custom">
     <div class="logo-container-top">
-        <a href="menu.php" title="Ir a Inicio">
-            <img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS">
-        </a>
+        <a href="menu.php" title="Ir a Inicio"><img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS"></a>
     </div>
     <div class="d-flex align-items-center">
         <span class="text-dark me-3 user-info-top">
@@ -182,7 +174,7 @@ function getEstadoBadgeClass($estado) {
                 <input type="text" class="form-control form-control-sm" id="cedula_buscar" name="cedula" value="<?= htmlspecialchars($cedula_buscada) ?>" placeholder="Número de cédula">
             </div>
             <div class="col-md-2">
-                <label for="regional_buscar" class="form-label">Regional del Activo</label>
+                <label for="regional_buscar" class="form-label">Regional (Responsable)</label>
                 <select name="regional" class="form-select form-select-sm" id="regional_buscar">
                     <option value="">-- Todas --</option>
                     <?php foreach ($regionales as $r): ?>
@@ -191,7 +183,7 @@ function getEstadoBadgeClass($estado) {
                 </select>
             </div>
             <div class="col-md-2">
-                <label for="empresa_buscar" class="form-label">Empresa</label>
+                <label for="empresa_buscar" class="form-label">Empresa (Responsable)</label>
                 <select name="empresa" class="form-select form-select-sm" id="empresa_buscar">
                     <option value="">-- Todas --</option>
                     <?php foreach ($empresas_disponibles as $e): ?>
@@ -202,9 +194,7 @@ function getEstadoBadgeClass($estado) {
             <div class="col-md-3">
                 <div class="form-check mt-4 pt-2">
                     <input class="form-check-input" type="checkbox" value="1" id="incluir_bajas" name="incluir_bajas" <?= $incluir_dados_baja ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="incluir_bajas">
-                        Incluir Dados de Baja
-                    </label>
+                    <label class="form-check-label" for="incluir_bajas">Incluir Dados de Baja</label>
                 </div>
             </div>
             <div class="col-md-2">
@@ -230,14 +220,15 @@ function getEstadoBadgeClass($estado) {
         <?php if (!empty($activos_encontrados)) :
             $activos_agrupados = [];
             foreach ($activos_encontrados as $activo_item) {
-                // Usar 'Empresa' como clave si así se devuelve de la BD (basado en debug previo)
-                $key_grupo = $activo_item['cedula'] . '-' . $activo_item['nombre'];
+                $key_grupo = $activo_item['cedula_responsable'] . '-' . $activo_item['nombre_responsable'];
                 if (!isset($activos_agrupados[$key_grupo])) {
                     $activos_agrupados[$key_grupo]['info'] = [
-                        'cedula' => $activo_item['cedula'],
-                        'nombre' => $activo_item['nombre'],
-                        'cargo' => $activo_item['cargo'],
-                        'empresa_responsable' => $activo_item['Empresa'] ?? ($activo_item['empresa'] ?? 'N/A') // Para mostrar en el header del grupo
+                        'cedula' => $activo_item['cedula_responsable'],
+                        'nombre' => $activo_item['nombre_responsable'],
+                        'cargo' => $activo_item['cargo_responsable'],
+                        'empresa_responsable' => $activo_item['empresa_del_responsable'] ?? 'N/A',
+                        // --- CAMBIO: Agregar la regional del responsable para el encabezado del grupo ---
+                        'regional_del_responsable' => $activo_item['regional_responsable'] ?? 'N/A'
                     ];
                     $activos_agrupados[$key_grupo]['activos'] = [];
                 }
@@ -270,6 +261,7 @@ function getEstadoBadgeClass($estado) {
                             <h4><?= htmlspecialchars($responsable_info['nombre']) ?></h4>
                             <p><strong>Cédula:</strong> <?= htmlspecialchars($responsable_info['cedula']) ?> |
                                 <strong>Cargo:</strong> <?= htmlspecialchars($responsable_info['cargo']) ?> |
+                                <strong>Regional:</strong> <?= htmlspecialchars($responsable_info['regional_del_responsable']) ?> |
                                 <strong>Empresa:</strong> <?= htmlspecialchars($responsable_info['empresa_responsable']) ?>
                             </p>
                         </div>
@@ -291,9 +283,11 @@ function getEstadoBadgeClass($estado) {
                         <table class="table-minimalist table-hover">
                             <thead>
                                 <tr>
-                                    <th>#</th><th>Tipo</th><th>Marca</th><th>Serie</th><th>Estado</th>
-                                    <th>Regional</th>
-                                    <th>Empresa</th> 
+                                    <th>#</th>
+                                    <th>Tipo</th>
+                                    <th>Marca</th><th>Serie</th><th>Estado</th>
+                                    <th>Regional (Resp.)</th>
+                                    <th>Empresa (Resp.)</th> 
                                     <th>Valor</th><th>Fecha Reg.</th><th>Acciones</th>
                                 </tr>
                             </thead>
@@ -301,20 +295,27 @@ function getEstadoBadgeClass($estado) {
                             <?php foreach ($activos_del_responsable as $activo) : ?>
                                 <tr class="<?= ($activo['estado'] == 'Dado de Baja') ? 'table-danger' : '' ?>">
                                     <td><span class="asset-item-number"><?= $asset_item_number++ ?>.</span></td>
-                                    <td><?= htmlspecialchars($activo['tipo_activo']) ?></td>
+                                    <td><?= htmlspecialchars($activo['nombre_tipo_activo'] ?? 'N/A') ?></td>
                                     <td><?= htmlspecialchars($activo['marca']) ?></td>
                                     <td><?= htmlspecialchars($activo['serie']) ?></td>
                                     <td><span class="<?= getEstadoBadgeClass($activo['estado']) ?>"><?= htmlspecialchars($activo['estado']) ?></span></td>
-                                    <td><?= htmlspecialchars($activo['regional']) ?></td>
-                                    <td><?= htmlspecialchars($activo['Empresa'] ?? ($activo['empresa'] ?? 'N/A')) ?></td> 
+                                    <td><?= htmlspecialchars($activo['regional_responsable'] ?? 'N/A') ?></td>
+                                    <td><?= htmlspecialchars($activo['empresa_del_responsable'] ?? 'N/A') ?></td>
                                     <td>$<?= htmlspecialchars(number_format(floatval($activo['valor_aproximado']), 0, ',', '.')) ?></td>
                                     <td><?= htmlspecialchars(date("d/m/Y", strtotime($activo['fecha_registro']))) ?></td>
                                     <td>
-                                        <a href="historial.php?id_activo=<?= htmlspecialchars($activo['id']) ?>" class="btn btn-sm btn-outline-info" title="Ver Historial Detallado" target="_blank">
-                                            <i class="bi bi-list-task"></i>
-                                        </a>
-                                        <?php if ((function_exists('tiene_permiso_para') && tiene_permiso_para('editar_activo_detalles')) && $activo['estado'] != 'Dado de Baja'): ?>
-                                        <a href="editar.php?cedula=<?= htmlspecialchars($activo['cedula']) ?>&regional=<?= htmlspecialchars($activo['regional']) ?>&empresa=<?= htmlspecialchars($activo['Empresa'] ?? ($activo['empresa'] ?? '')) ?>&id_activo_focus=<?= $activo['id'] ?>" class="btn btn-sm btn-outline-primary" title="Editar este activo">
+                                        <a href="historial.php?id_activo=<?= htmlspecialchars($activo['id']) ?>" class="btn btn-sm btn-outline-info" title="Ver Historial Detallado" target="_blank"><i class="bi bi-list-task"></i></a>
+                                        <?php 
+                                        $cedula_para_editar = $activo['cedula_responsable'] ?? '';
+                                        // Para el enlace de editar, asumimos que la regional y empresa que se envían son las del activo
+                                        // Si estas columnas ya no existen en `activos_tecnologicos`, deberás decidir qué enviar
+                                        // o modificar el script `editar.php` para que no las requiera o las obtenga de otra forma.
+                                        // Por ahora, se deja como estaba, lo que podría causar problemas si `editar.php` las espera.
+                                        $regional_del_activo_para_editar = $activo['regional'] ?? ''; // Intentará obtener de a.regional
+                                        $empresa_del_activo_para_editar = $activo['Empresa'] ?? '';   // Intentará obtener de a.Empresa
+
+                                        if ((function_exists('tiene_permiso_para') && tiene_permiso_para('editar_activo_detalles')) && $activo['estado'] != 'Dado de Baja'): ?>
+                                        <a href="editar.php?cedula=<?= htmlspecialchars($cedula_para_editar) ?>&regional=<?= htmlspecialchars($regional_del_activo_para_editar) ?>&empresa=<?= htmlspecialchars($empresa_del_activo_para_editar) ?>&id_activo_focus=<?= $activo['id'] ?>" class="btn btn-sm btn-outline-primary" title="Editar este activo">
                                             <i class="bi bi-pencil-fill"></i>
                                         </a>
                                         <?php endif; ?>

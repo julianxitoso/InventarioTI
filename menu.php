@@ -219,12 +219,12 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
             <?php if (tiene_permiso_para('gestionar_usuarios')): ?>
             <div class="col">
-                 <a href="gestionar_usuarios.php" class="card-link">
+                 <a href="centro_gestion.php" class="card-link">
                 <div class="card menu-card h-100">
                     <div class="card-body">
                         <i class="bi bi-people-fill text-primary"></i>
                         <h5 class="card-title">Centro de Gestión</h5>
-                        <p class="card-text">Administrar usuarios, Roles y Cargos.</p>
+                        <p class="card-text">Administrar Usuarios, Roles,Cargos Y Activos.</p>
                     </div>
                 </div>
                 </a>
@@ -233,7 +233,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
             
             <?php if (tiene_permiso_para('ver_depreciacion')): ?>
             <div class="col">
-                 <a href="depreciacion.php" class="card-link"> <div class="card menu-card h-100">
+                 <a href="depreciacion_activos.php" class="card-link"> <div class="card menu-card h-100">
                     <div class="card-body">
                         <i class="bi bi-graph-down text-dark"></i>
                         <h5 class="card-title">Depreciación de Activos</h5>

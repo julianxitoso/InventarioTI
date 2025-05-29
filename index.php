@@ -11,10 +11,31 @@ $conexion->set_charset("utf8mb4");
 $nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
 $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
-// Definición de opciones para los selects del formulario
+
+// --- LECTURA DESDE LA BASE DE DATOS (ESTO YA ESTÁ CORRECTO) ---
+// Obtenemos el nombre Y la vida útil sugerida desde la BD
+$opciones_tipo_activo = [];
+$vida_util_map = []; // Mapa para asociar: Nombre -> Vida Útil
+
+$sql_tipos = "SELECT nombre_tipo_activo, vida_util_sugerida FROM tipos_activo ORDER BY nombre_tipo_activo ASC";
+$result_tipos = $conexion->query($sql_tipos);
+if ($result_tipos && $result_tipos->num_rows > 0) {
+    while($row = $result_tipos->fetch_assoc()) {
+        $opciones_tipo_activo[] = $row['nombre_tipo_activo'];
+        // Llenamos el mapa con los datos de la base de datos
+        $vida_util_map[$row['nombre_tipo_activo']] = (int)$row['vida_util_sugerida']; // Aseguramos que sea un número
+    }
+} else {
+    // Fallback por si la consulta falla o no hay tipos de activo
+    $opciones_tipo_activo = ['Computador', 'Monitor', 'Impresora', 'Escáner', 'Otro'];
+    $vida_util_map = ['Computador' => 5, 'Monitor' => 5, 'Impresora' => 5, 'Escáner' => 5, 'Otro' => 5];
+}
+// --- FIN LECTURA ---
+
+
+// Definición de otras opciones para los selects del formulario
 $regionales = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional'];
 $empresas_disponibles = ['Arpesod', 'Finansueños'];
-$opciones_tipo_activo = ['Computador', 'Monitor', 'Impresora', 'Escáner', 'DVR', 'Contadora Billetes', 'Contadora Monedas', 'Celular', 'Impresora Térmica', 'Combo Teclado y Mouse', 'Diadema', 'Hub Multipuertos/Red', 'Telefono', 'Router', 'Otro'];
 $opciones_tipo_equipo = ['Portátil', 'Mesa', 'Todo en 1'];
 $opciones_red = ['Cableada', 'Inalámbrica', 'Ambas'];
 $opciones_estado_general = ['Bueno', 'Regular', 'Malo', 'Nuevo'];
@@ -122,7 +143,24 @@ unset($_SESSION['error_global']);
         <div class="form-section" id="seccionAgregarActivo" style="display: none;">
              <h5 class="mb-3">2. Agregar Activo para <strong id="nombreResponsableDisplay"></strong></h5>
              <div class="row">
-                 <div class="col-md-4 mb-3"><label for="tipo_activo" class="form-label">Tipo de Activo <span class="text-danger">*</span></label><select class="form-select" id="tipo_activo" name="activo_tipo_activo" required><option value="">Seleccione...</option><?php foreach ($opciones_tipo_activo as $opcion): ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php endforeach; ?></select></div>
+                 <div class="col-md-4 mb-3">
+                    <label for="tipo_activo" class="form-label">Tipo de Activo <span class="text-danger">*</span></label>
+                    <select class="form-select" id="tipo_activo" name="activo_tipo_activo" required>
+                        <option value="">Seleccione...</option>
+                        <?php foreach ($opciones_tipo_activo as $opcion): ?>
+                        <option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                 </div>
+
+                 <div class="col-md-4 mb-3" id="campo_tipo_impresora_container" style="display: none;">
+                    <label for="tipo_impresora" class="form-label">Tipo de Impresora <span class="text-danger">*</span></label>
+                    <select class="form-select" id="tipo_impresora" name="activo_tipo_impresora">
+                        <option value="">Seleccione...</option>
+                        <option value="Laser">Laser</option>
+                        <option value="Tinta">Tinta</option>
+                    </select>
+                 </div>
                  <div class="col-md-4 mb-3"><label for="marca" class="form-label">Marca <span class="text-danger">*</span></label><input type="text" class="form-control" id="marca" name="activo_marca" required></div>
                  <div class="col-md-4 mb-3"><label for="serie" class="form-label">Serie / Serial <span class="text-danger">*</span></label><input type="text" class="form-control" id="serie" name="activo_serie" required></div>
             </div>
@@ -148,7 +186,7 @@ unset($_SESSION['error_global']);
                     <select class="form-select" id="metodo_depreciacion" name="activo_metodo_depreciacion" disabled>
                         <option value="Linea Recta" selected>Línea Recta</option>
                     </select>
-                </div>
+                 </div>
                 <div class="col-md-3 mb-3">
                     <label for="valor_residual" class="form-label">Valor Residual</label>
                     <input type="number" class="form-control" id="valor_residual" name="activo_valor_residual" value="0" readonly>
@@ -225,33 +263,68 @@ unset($_SESSION['error_global']);
     divInfoAplicaciones.classList.add('form-text', 'mb-2', 'mt-1', 'p-2', 'border', 'border-info', 'rounded', 'bg-light');
     divInfoAplicaciones.style.display = 'none';
     const contenedorCheckboxesApp = document.getElementById('contenedorCheckboxesAplicaciones');
-     if (contenedorCheckboxesApp) {
-         contenedorCheckboxesApp.parentNode.insertBefore(divInfoAplicaciones, contenedorCheckboxesApp);
-     }
+      if (contenedorCheckboxesApp) {
+          contenedorCheckboxesApp.parentNode.insertBefore(divInfoAplicaciones, contenedorCheckboxesApp);
+      }
+    
+    // --- INICIO: MODIFICACIÓN para incluir el nuevo campo de impresora ---
     const camposActivoIds = {
-        tipo_activo: 'tipo_activo', marca: 'marca', serie: 'serie', estado: 'estado',
-        valor_aproximado: 'valor_aproximado', codigo_inv: 'codigo_inv', detalles: 'detalles',
+        tipo_activo: 'tipo_activo', 
+        tipo_impresora: 'tipo_impresora', // <--- AÑADIDO
+        marca: 'marca', 
+        serie: 'serie', 
+        estado: 'estado',
+        valor_aproximado: 'valor_aproximado', 
+        codigo_inv: 'codigo_inv', 
+        detalles: 'detalles',
         fecha_compra: 'fecha_compra',
         vida_util: 'vida_util',
         valor_residual: 'valor_residual',
         metodo_depreciacion: 'metodo_depreciacion',
-        procesador: 'activo_procesador', ram: 'activo_ram', disco_duro: 'activo_disco_duro',
-        tipo_equipo: 'activo_tipo_equipo', red: 'activo_red', sistema_operativo: 'activo_so',
-        offimatica: 'activo_offimatica', antivirus: 'activo_antivirus',
+        procesador: 'activo_procesador', 
+        ram: 'activo_ram', 
+        disco_duro: 'activo_disco_duro',
+        tipo_equipo: 'activo_tipo_equipo', 
+        red: 'activo_red', 
+        sistema_operativo: 'activo_so',
+        offimatica: 'activo_offimatica', 
+        antivirus: 'activo_antivirus',
         satisfaccion_rating_name: 'activo_satisfaccion_rating'
     };
+    // --- FIN: MODIFICACIÓN ---
+
     const campoTipoActivo = document.getElementById('tipo_activo');
     const campoVidaUtil = document.getElementById('vida_util');
-    const vidaUtilPorTipo = {
-        'Computador': 5, 'Monitor': 5, 'Impresora': 5, 'Escáner': 5, 'DVR': 5, 'Celular': 5,
-        'Impresora Térmica': 5, 'Combo Teclado y Mouse': 5, 'Diadema': 5, 'Adaptador Multipuertos / Red': 5,
-        'Router': 5, 'Contadora Billetes': 10, 'Contadora Monedas': 10, 'Otro': 5 
-    };
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Reemplazamos el objeto estático con uno generado dinámicamente por PHP.
+    const vidaUtilPorTipo = <?php echo json_encode($vida_util_map); ?>;
+    // --- FIN DE LA MODIFICACIÓN ---
+
+    // --- INICIO: Lógica para campo condicional de Impresora ---
+    const campoTipoImpresoraContainer = document.getElementById('campo_tipo_impresora_container');
+    const campoTipoImpresoraSelect = document.getElementById('tipo_impresora');
+
     campoTipoActivo.addEventListener('change', function() {
         const tipoSeleccionado = this.value;
+        // La lógica sigue funcionando igual, pero ahora usa los datos de la BD
         campoVidaUtil.value = vidaUtilPorTipo[tipoSeleccionado] || '';
-        document.getElementById('campos_computador_form_activo').style.display = (this.value === 'Computador') ? 'block' : 'none';
+        
+        // Mostrar/ocultar campos de computador
+        document.getElementById('campos_computador_form_activo').style.display = (tipoSeleccionado === 'Computador') ? 'block' : 'none';
+        
+        // Mostrar/ocultar campo de tipo de impresora
+        if (tipoSeleccionado === 'Impresora') {
+            campoTipoImpresoraContainer.style.display = 'block';
+            campoTipoImpresoraSelect.required = true;
+        } else {
+            campoTipoImpresoraContainer.style.display = 'none';
+            campoTipoImpresoraSelect.required = false;
+            campoTipoImpresoraSelect.value = ''; // Limpiar valor si se oculta
+        }
     });
+    // --- FIN: Lógica para campo condicional ---
+
     btnAgregarActivoTabla.addEventListener('click', function() {
         if (!responsableConfirmado) {
             mostrarInfoModal('Confirme primero', 'Primero debe confirmar los datos del responsable.');
@@ -264,16 +337,30 @@ unset($_SESSION['error_global']);
                 const ratingChecked = document.querySelector(`input[name="${camposActivoIds[key]}"]:checked`);
                 activo[key] = ratingChecked ? ratingChecked.value : null;
             } else if (inputElement) {
-                activo[key] = inputElement.value.trim();
+                // Solo se guarda el valor del tipo de impresora si su contenedor es visible
+                if (key === 'tipo_impresora' && campoTipoImpresoraContainer.style.display === 'none') {
+                    activo[key] = '';
+                } else {
+                    activo[key] = inputElement.value.trim();
+                }
                 camposActivoForm[key] = inputElement;
             } else {
                 activo[key] = '';
             }
         }
-        if (!activo.tipo_activo || !activo.marca || !activo.serie || !activo.estado || !activo.valor_aproximado || !activo.fecha_compra) {
+        
+        let camposRequeridosIncompletos = !activo.tipo_activo || !activo.marca || !activo.serie || !activo.estado || !activo.valor_aproximado || !activo.fecha_compra;
+        
+        // Validacion adicional para el tipo de impresora
+        if (activo.tipo_activo === 'Impresora' && !activo.tipo_impresora) {
+            camposRequeridosIncompletos = true;
+        }
+
+        if (camposRequeridosIncompletos) {
             mostrarInfoModal('Campos incompletos', 'Por favor, complete todos los campos marcados con asterisco (*).');
             activoValido = false;
         }
+
         if (isNaN(parseFloat(activo.valor_aproximado)) && activo.valor_aproximado !== '') {
             mostrarInfoModal('Formato incorrecto', 'El valor del activo debe ser un número.');
             activoValido = false;
@@ -296,7 +383,9 @@ unset($_SESSION['error_global']);
         btnGuardarTodo.disabled = false;
         activosParaGuardar.forEach((activo, index) => {
             const fila = tablaActivosBody.insertRow();
-            fila.insertCell().textContent = activo.tipo_activo || 'N/A';
+            // Si es una impresora, podemos añadir el tipo al texto
+            let tipoDisplay = activo.tipo_impresora ? `${activo.tipo_activo} (${activo.tipo_impresora})` : (activo.tipo_activo || 'N/A');
+            fila.insertCell().textContent = tipoDisplay;
             fila.insertCell().textContent = activo.marca || 'N/A';
             fila.insertCell().textContent = activo.serie || 'N/A';
             fila.insertCell().textContent = activo.fecha_compra || 'N/A';
@@ -381,8 +470,8 @@ unset($_SESSION['error_global']);
         } else {
             let errorMostrado = false;
             if (document.querySelector('.is-invalid')) { 
-                  mostrarInfoModal('Campos incompletos', 'Por favor, complete todos los campos de información del responsable marcados con *.');
-                  errorMostrado = true;
+                 mostrarInfoModal('Campos incompletos', 'Por favor, complete todos los campos de información del responsable marcados con *.');
+                 errorMostrado = true;
             }
         }
     });
@@ -452,9 +541,9 @@ unset($_SESSION['error_global']);
                         if (checkOtrosAppInput && otrasAppsTextoGuardado) {
                              checkOtrosAppInput.checked = true;
                              if (textoOtrosAppInput) {
-                                 textoOtrosAppInput.value = otrasAppsTextoGuardado;
-                                 textoOtrosAppInput.style.display = 'block';
-                                 textoOtrosAppInput.disabled = true;
+                                  textoOtrosAppInput.value = otrasAppsTextoGuardado;
+                                  textoOtrosAppInput.style.display = 'block';
+                                  textoOtrosAppInput.disabled = true;
                              }
                         } else if (textoOtrosAppInput) {
                             textoOtrosAppInput.style.display = 'none';
@@ -507,11 +596,10 @@ unset($_SESSION['error_global']);
             .catch(error => { console.error('Error AJAX:', error); callback({ encontrado: false, mensaje: 'Error al contactar el servidor.' }); });
     }
 
-    // PASO 2: USAR UN EVENTO 'CLICK' EN LUGAR DE 'SUBMIT'
+    // USAR UN EVENTO 'CLICK' EN LUGAR DE 'SUBMIT'
     btnGuardarTodo.addEventListener('click', function() {
         console.log("--- Botón 'Guardar Todo' presionado. Iniciando proceso. ---");
 
-        // Validaciones iniciales
         if (!responsableConfirmado) { 
             mostrarInfoModal('Confirme Responsable', 'Primero debe confirmar los datos del responsable usando el botón correspondiente.');
             return;
@@ -523,20 +611,17 @@ unset($_SESSION['error_global']);
 
         console.log("Validaciones pasadas. Preparando formulario para envío.");
 
-        // Habilitar campos del responsable para que sus datos se envíen
         inputCedulaResponsable.disabled = false;
         setPrincipalResponsableFieldsDisabled(false);
         setAplicacionesFieldsDisabled(false); 
         document.getElementById('metodo_depreciacion').disabled = false;
 
-        // Limpiar inputs ocultos previos para evitar duplicados si se presiona guardar varias veces
         formPrincipal.querySelectorAll('input[type="hidden"]').forEach(el => {
             if (el.name.startsWith('activos[')) {
                 el.remove();
             }
         });
 
-        // Crear los campos ocultos (hidden inputs) con los datos de los activos en la lista
         activosParaGuardar.forEach((activo, index) => {
             for (const propiedad in activo) {
                 const inputHidden = document.createElement('input');
@@ -551,7 +636,6 @@ unset($_SESSION['error_global']);
 
         console.log("Campos ocultos creados. Enviando formulario...");
 
-        // Enviar el formulario explícitamente
         formPrincipal.submit();
     });
 </script>

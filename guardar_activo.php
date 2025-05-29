@@ -20,14 +20,10 @@ if (!isset($conexion) || !$conexion) {
 $conexion->set_charset("utf8mb4");
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // --- Captura de Datos del Responsable ---
-    $responsable_cedula = trim($_POST['responsable_cedula'] ?? '');
-    $responsable_nombre = trim($_POST['responsable_nombre'] ?? '');
-    $responsable_cargo = trim($_POST['responsable_cargo'] ?? '');
-    $responsable_regional = trim($_POST['responsable_regional'] ?? '');
-    $responsable_empresa = trim($_POST['responsable_empresa'] ?? '');
+    $responsable_cedula_form = trim($_POST['responsable_cedula'] ?? '');
+    $responsable_nombre_form = trim($_POST['responsable_nombre'] ?? ''); // Para validación
+    // ... (otros campos del responsable del form para validación si los necesitas)
 
-    // --- CAPTURA DE DATOS DE APLICACIONES DEL RESPONSABLE ---
     $aplicaciones_seleccionadas_raw = $_POST['responsable_aplicaciones'] ?? [];
     $otros_aplicaciones_texto = trim($_POST['responsable_aplicaciones_otros_texto'] ?? '');
     $aplicaciones_para_guardar_array = [];
@@ -44,8 +40,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $activos_lote = $_POST['activos'] ?? [];
 
-    if (empty($responsable_cedula) || empty($responsable_nombre) || empty($responsable_cargo) || empty($responsable_regional) || empty($responsable_empresa)) {
-        $_SESSION['error_global'] = "Faltan datos del responsable.";
+    if (empty($responsable_cedula_form) || empty($responsable_nombre_form) /* Agrega otras validaciones de campos del form si es necesario */) {
+        $_SESSION['error_global'] = "Faltan datos del responsable en el formulario.";
         header('Location: index.php');
         exit;
     }
@@ -55,36 +51,50 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit;
     }
 
+    $id_usuario_responsable_para_guardar = null;
+    $sql_get_user_id = "SELECT id FROM usuarios WHERE usuario = ?";
+    $stmt_get_user_id = $conexion->prepare($sql_get_user_id);
+    if ($stmt_get_user_id) {
+        $stmt_get_user_id->bind_param("s", $responsable_cedula_form);
+        $stmt_get_user_id->execute();
+        $result_user_id = $stmt_get_user_id->get_result();
+        if ($row_user_id = $result_user_id->fetch_assoc()) {
+            $id_usuario_responsable_para_guardar = $row_user_id['id'];
+        }
+        $stmt_get_user_id->close();
+    }
+
+    if ($id_usuario_responsable_para_guardar === null) {
+        $_SESSION['error_global'] = "No se pudo encontrar el usuario responsable con la cédula '" . htmlspecialchars($responsable_cedula_form) . "' en el sistema. Verifique que el usuario exista.";
+        header('Location: index.php');
+        exit;
+    }
+
     $conexion->begin_transaction();
     $errores_guardado = [];
     $activos_guardados_count = 0;
-    $ids_activos_creados = [];
 
-    // --- ACTUALIZAR APLICACIONES DEL USUARIO RESPONSABLE ---
     if (!empty($aplicaciones_usadas_responsable_string)) {
-        $sql_update_usuario = "UPDATE usuarios SET aplicaciones_usadas = ? WHERE usuario = ?";
+        $sql_update_usuario = "UPDATE usuarios SET aplicaciones_usadas = ? WHERE id = ?";
         $stmt_update_usuario = $conexion->prepare($sql_update_usuario);
         if ($stmt_update_usuario) {
-            $stmt_update_usuario->bind_param("ss", $aplicaciones_usadas_responsable_string, $responsable_cedula);
-            if (!$stmt_update_usuario->execute()) {
-                error_log("Advertencia: No se pudo actualizar 'aplicaciones_usadas' para el usuario ".$responsable_cedula.": " . $stmt_update_usuario->error);
-            }
+            $stmt_update_usuario->bind_param("si", $aplicaciones_usadas_responsable_string, $id_usuario_responsable_para_guardar);
+            $stmt_update_usuario->execute();
             $stmt_update_usuario->close();
-        } else {
-            error_log("Advertencia: Error al preparar la actualización de 'aplicaciones_usadas' para el usuario ".$responsable_cedula.": " . $conexion->error);
         }
     }
 
-    // Consulta SQL con todas las columnas, incluyendo las de depreciación
+    // --- CAMBIO EN LA CONSULTA SQL: Se eliminan 'regional' y 'Empresa' ---
     $sql = "INSERT INTO activos_tecnologicos (
-                cedula, nombre, cargo, regional, Empresa, 
-                tipo_activo, marca, serie, estado, valor_aproximado, codigo_inv, detalles, 
+                id_usuario_responsable, id_tipo_activo, marca, serie, estado, 
+                valor_aproximado, Codigo_Inv, detalles, 
                 procesador, ram, disco_duro, tipo_equipo, red, sistema_operativo, 
                 offimatica, antivirus, satisfaccion_rating, 
-                fecha_compra, vida_util, valor_residual, metodo_depreciacion,
+                fecha_compra, valor_residual, metodo_depreciacion, fecha_inicio_depreciacion,
                 fecha_registro
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"; // 25 '?'
-            
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"; 
+    // Ahora son 21 '?'
+
     $stmt_activos = $conexion->prepare($sql);
 
     if (!$stmt_activos) {
@@ -96,13 +106,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     foreach ($activos_lote as $index => $activo_data) {
-        // --- Datos existentes ---
-        $tipo_activo = trim($activo_data['tipo_activo'] ?? '');
+        $nombre_tipo_activo_form = trim($activo_data['tipo_activo'] ?? '');
+        $id_tipo_activo_para_guardar = null;
+
+        if (!empty($nombre_tipo_activo_form)) {
+            $sql_get_tipo_id = "SELECT id_tipo_activo FROM tipos_activo WHERE nombre_tipo_activo = ?";
+            $stmt_get_tipo_id = $conexion->prepare($sql_get_tipo_id);
+            if ($stmt_get_tipo_id) {
+                $stmt_get_tipo_id->bind_param("s", $nombre_tipo_activo_form);
+                $stmt_get_tipo_id->execute();
+                $result_tipo_id = $stmt_get_tipo_id->get_result();
+                if ($row_tipo_id = $result_tipo_id->fetch_assoc()) {
+                    $id_tipo_activo_para_guardar = $row_tipo_id['id_tipo_activo'];
+                }
+                $stmt_get_tipo_id->close();
+            }
+        }
+        
+        if ($id_tipo_activo_para_guardar === null && !empty($nombre_tipo_activo_form) ) {
+             $errores_guardado[] = "Activo #".($index+1).": El tipo de activo '".htmlspecialchars($nombre_tipo_activo_form)."' no es válido.";
+             continue;
+        }
+
         $marca = trim($activo_data['marca'] ?? '');
         $serie = trim($activo_data['serie'] ?? '');
         $estado = trim($activo_data['estado'] ?? '');
         $valor_aproximado_str = trim($activo_data['valor_aproximado'] ?? '');
-        $codigo_inv = trim($activo_data['codigo_inv'] ?? '');
+        $codigo_inv_form = trim($activo_data['codigo_inv'] ?? '');
         $detalles = trim($activo_data['detalles'] ?? '');
         $procesador = trim($activo_data['procesador'] ?? '');
         $ram = trim($activo_data['ram'] ?? '');
@@ -112,77 +142,76 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $sistema_operativo = trim($activo_data['sistema_operativo'] ?? '');
         $offimatica = trim($activo_data['offimatica'] ?? '');
         $antivirus = trim($activo_data['antivirus'] ?? '');
+        $satisfaccion_rating = (isset($activo_data['satisfaccion_rating']) && $activo_data['satisfaccion_rating'] !== '') ? (int)$activo_data['satisfaccion_rating'] : null;
         
-        $satisfaccion_rating = null;
-        if (isset($activo_data['satisfaccion_rating']) && $activo_data['satisfaccion_rating'] !== '') {
-            $rating_value = filter_var($activo_data['satisfaccion_rating'], FILTER_VALIDATE_INT, ["options" => ["min_range" => 1, "max_range" => 5]]);
-            if ($rating_value !== false) $satisfaccion_rating = $rating_value;
-        }
+        $fecha_compra = empty(trim($activo_data['fecha_compra'] ?? '')) ? null : trim($activo_data['fecha_compra']);
+        $valor_residual = trim($activo_data['valor_residual'] ?? '0');
+        $metodo_depreciacion = trim($activo_data['metodo_depreciacion'] ?? 'Linea Recta');
+        $fecha_inicio_depreciacion = $fecha_compra;
 
-        // --- Datos de depreciación ---
-        $fecha_compra = trim($activo_data['fecha_compra'] ?? '');
-        $vida_util = trim($activo_data['vida_util'] ?? null);
-        $valor_residual = trim($activo_data['valor_residual'] ?? null);
-        $metodo_depreciacion = trim($activo_data['metodo_depreciacion'] ?? '');
-        
-        if (empty($fecha_compra)) {
-            $fecha_compra = null;
-        }
-        
-        // --- Validaciones ---
-        if (empty($tipo_activo) || empty($marca) || empty($serie) || empty($estado) || $valor_aproximado_str === '') {
-            $errores_guardado[] = "Activo #".($index+1).": Faltan campos obligatorios.";
+        // --- CAMBIO: Se eliminan $regional_activo y $empresa_activo ya que no se guardan aquí ---
+        // $regional_activo = trim($activo_data['regional'] ?? null); 
+        // $empresa_activo = trim($activo_data['empresa'] ?? null);   
+
+        if (empty($nombre_tipo_activo_form) || empty($marca) || empty($serie) || empty($estado) || $valor_aproximado_str === '' || $fecha_compra === null) {
+            $errores_guardado[] = "Activo #".($index+1)." (Serie: ".htmlspecialchars($serie)."): Faltan campos obligatorios (Tipo, Marca, Serie, Estado, Valor, Fecha Compra).";
             continue;
         }
         $valor_aproximado = filter_var($valor_aproximado_str, FILTER_VALIDATE_FLOAT);
         if ($valor_aproximado === false || $valor_aproximado < 0) {
-            $errores_guardado[] = "Activo #".($index+1)." (Serie: ".$serie."): Valor aproximado no es válido.";
+            $errores_guardado[] = "Activo #".($index+1)." (Serie: ".htmlspecialchars($serie)."): Valor aproximado no es válido.";
             continue;
         }
         
-        // --- CORRECCIÓN FINAL ---
-        // La cadena de tipos ahora tiene 25 caracteres para coincidir con las 25 variables.
-        $stmt_activos->bind_param(
-            "sssssssssdssssssssssisids", 
-            $responsable_cedula, $responsable_nombre, $responsable_cargo, $responsable_regional, $responsable_empresa,
-            $tipo_activo, $marca, $serie, $estado, $valor_aproximado, $codigo_inv, $detalles,
+        // --- CAMBIO EN BIND_PARAM: Se quitan las variables y tipos para regional y empresa ---
+        $tipos_bind = "iisssdsssssssssssisss"; // 21 parámetros
+        $stmt_activos->bind_param( $tipos_bind, 
+            $id_usuario_responsable_para_guardar, $id_tipo_activo_para_guardar, $marca, $serie, $estado,
+            $valor_aproximado, $codigo_inv_form, $detalles,
             $procesador, $ram, $disco_duro, $tipo_equipo, $red, $sistema_operativo,
             $offimatica, $antivirus, $satisfaccion_rating,
-            $fecha_compra,
-            $vida_util,
-            $valor_residual,
-            $metodo_depreciacion
+            $fecha_compra, $valor_residual, $metodo_depreciacion, $fecha_inicio_depreciacion
+            // Se eliminaron $regional_activo, $empresa_activo de aquí
         );
 
-        if ($stmt_activos->execute()) {
+        try {
+            $stmt_activos->execute();
             $id_activo_creado = $conexion->insert_id;
-            $ids_activos_creados[] = $id_activo_creado;
             $activos_guardados_count++;
-
-            $descripcion_historial = "Activo creado. Tipo: ".htmlspecialchars($tipo_activo).", Serie: ".htmlspecialchars($serie);
-            $datos_creacion_activo = $activo_data;
-            $datos_creacion_activo['cedula_responsable'] = $responsable_cedula;
-            
+            $descripcion_historial = "Activo creado. Tipo: ".htmlspecialchars($nombre_tipo_activo_form).", Serie: ".htmlspecialchars($serie);
             $usuario_actual_sistema_para_historial = $_SESSION['usuario_login'] ?? 'Sistema';
-            registrar_evento_historial($conexion, $id_activo_creado, HISTORIAL_TIPO_CREACION, $descripcion_historial, $usuario_actual_sistema_para_historial, null, $datos_creacion_activo);
-        } else {
-            $errores_guardado[] = "Activo #".($index+1)." (Serie: ".$serie."): Error al guardar - " . $stmt_activos->error;
-            error_log("Error al guardar activo (lote) S/N ".$serie.": " . $stmt_activos->error);
+            registrar_evento_historial($conexion, $id_activo_creado, HISTORIAL_TIPO_CREACION, $descripcion_historial, $usuario_actual_sistema_para_historial, null, $activo_data);
+        } catch (mysqli_sql_exception $e) {
+            if ($e->getCode() == 1062) { 
+                 if (strpos(strtolower($e->getMessage()), 'serie') !== false) { // Convertir a minúsculas para la comparación
+                    $errores_guardado[] = "Activo (Serie: ".htmlspecialchars($serie)."): Esta serie ya se encuentra registrada.";
+                } elseif (strpos(strtolower($e->getMessage()), 'codigo_inv') !== false) { // Convertir a minúsculas
+                    $errores_guardado[] = "Activo (Cód. Inv.: ".htmlspecialchars($codigo_inv_form)."): Este Código de Inventario ya se encuentra registrado.";
+                } else {
+                    $errores_guardado[] = "Activo (Serie: ".htmlspecialchars($serie)."): Error de entrada duplicada. Verifique serie y código de inventario.";
+                }
+            } else {
+                $errores_guardado[] = "Activo (Serie: ".htmlspecialchars($serie)."): Error de base de datos (#".$e->getCode().") - " . $e->getMessage();
+            }
+            error_log("Error al guardar activo S/N ".htmlspecialchars($serie).": " . $e->getMessage());
+            continue; 
         }
     } 
     $stmt_activos->close();
 
-    // Lógica de commit/rollback y mensajes
     if (empty($errores_guardado) && $activos_guardados_count > 0) {
         $conexion->commit();
-        $_SESSION['mensaje_global'] = $activos_guardados_count . " activo(s) registrado(s) exitosamente para " . htmlspecialchars($responsable_nombre) . ".";
+        $_SESSION['mensaje_global'] = $activos_guardados_count . " activo(s) registrado(s) exitosamente.";
     } elseif ($activos_guardados_count > 0 && !empty($errores_guardado)) {
         $conexion->commit(); 
         $_SESSION['error_global'] = $activos_guardados_count . " activo(s) guardado(s), pero con errores en otros: " . implode("; ", $errores_guardado);
     } else { 
         $conexion->rollback();
-        $_SESSION['error_global'] = "No se pudo registrar ningún activo. Errores: " . implode("; ", $errores_guardado);
-        if (empty($errores_guardado)) $_SESSION['error_global'] = "No se pudo registrar ningún activo debido a un error desconocido.";
+        if (empty($errores_guardado)) { // Si no hay errores específicos pero no se guardó nada
+            $_SESSION['error_global'] = "No se pudo registrar ningún activo. Verifique los datos.";
+        } else {
+            $_SESSION['error_global'] = "No se pudo registrar ningún activo. Errores: " . implode("; ", $errores_guardado);
+        }
     }
 
     header('Location: index.php');
