@@ -1,10 +1,7 @@
 <?php
 session_start();
 require_once 'backend/auth_check.php';
-restringir_acceso_pagina(['admin']);
-
-// La conexión a la BD ya no es necesaria aquí si solo es para navegar
-// require_once 'backend/db.php'; 
+restringir_acceso_pagina(['admin']); // O los roles que deban acceder al centro de gestión
 
 $nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Administrador';
 $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'admin';
@@ -13,7 +10,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'admin';
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Centro de Gestión - Inventario TI</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -29,8 +26,8 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'admin';
         .management-hub-cards .card:hover { transform: translateY(-5px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15); }
         .management-hub-cards .card-body { text-align: center; }
         .management-hub-cards .card i { font-size: 2.5rem; margin-bottom: 0.5rem; }
-        .management-hub-cards .card-title { font-size: 1.1rem; font-weight: 500; } /* Ligeramente más formal el peso */
-        .management-hub-cards .card-text { font-size: 0.85rem; } /* Un poco más pequeño el texto descriptivo */
+        .management-hub-cards .card-title { font-size: 1.1rem; font-weight: 500; } 
+        .management-hub-cards .card-text { font-size: 0.85rem; } 
     </style>
 </head>
 <body>
@@ -49,7 +46,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'admin';
         <i class="bi bi-gear-wide-connected"></i> Centro de Gestión
     </h3>
 
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-3 g-4 mb-5 management-hub-cards justify-content-center"> 
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mb-5 management-hub-cards justify-content-center">
         <div class="col">
             <a href="gestionar_usuarios.php" class="text-decoration-none text-dark">
                 <div class="card h-100">
@@ -94,7 +91,6 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'admin';
                 </div>
             </a>
         </div>
-        
         <div class="col">
             <a href="gestionar_proveedores.php" class="text-decoration-none text-dark">
                 <div class="card h-100">
@@ -106,6 +102,19 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'admin';
                 </div>
             </a>
         </div>
+
+        <div class="col">
+            <a href="gestion_prestamos.php" class="text-decoration-none text-dark">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column justify-content-center align-items-center p-4">
+                        <i class="bi bi-arrow-left-right text-secondary"></i>
+                        <h5 class="card-title mt-2">Gestionar Préstamos</h5>
+                        <p class="card-text small text-muted">Registrar y seguir préstamos de activos.</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
     </div>
 </div>
 

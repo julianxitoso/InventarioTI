@@ -38,24 +38,29 @@ $GLOBALS['config_permisos_roles'] = [
         'trasladar_activo', 'dar_baja_activo', 'eliminar_activo_fisico',
         'gestionar_usuarios',
         'ver_depreciacion',         // Permiso para ver módulo de depreciación
-        'registrar_mantenimiento'   // <<< NUEVO PERMISO AÑADIDO AQUÍ
+        'registrar_mantenimiento',
+        'gestion_prestamos',
+        'generar_acta_prestamo_pdf'  // <<< NUEVO PERMISO AÑADIDO AQUÍ
     ],
     'tecnico' => [
         'ver_menu', 'ver_dashboard',
         'buscar_activo', 'ver_historial', 'crear_activo',
         'editar_activo_detalles', 'trasladar_activo', 'dar_baja_activo',
         'generar_informes',
-        'registrar_mantenimiento'   // <<< NUEVO PERMISO AÑADIDO AQUÍ
+        'registrar_mantenimiento',
+        'gestion_prestamos'   // <<< NUEVO PERMISO AÑADIDO AQUÍ
     ],
     'auditor' => [
         'ver_menu', 'ver_dashboard',
         'buscar_activo', 'ver_historial', 'generar_informes',
-        'ver_depreciacion'         // Auditores también podrían ver depreciación
+        'ver_depreciacion',
+        'gestion_prestamos'         // Auditores también podrían ver depreciación
     ],
     'registrador' => [
         'ver_menu',
         'crear_activo',
-        'buscar_activo'
+        'buscar_activo',
+        'gestionar_prestamos'
     ]
 ];
 

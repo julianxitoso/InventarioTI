@@ -6,19 +6,24 @@ require_once 'backend/auth_check.php'; // Este archivo DEBE definir tiene_permis
 $nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
 $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
+// Asumimos que en auth_check.php se definen permisos como:
+// 'crear_activo', 'buscar_activo', 'gestionar_prestamos', 'editar_activo_detalles', 'trasladar_activo', 
+// 'registrar_mantenimiento', 'ver_dashboard', 'generar_informes', 
+// 'gestionar_usuarios', 'ver_depreciacion'
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Menú Principal - Inventario</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"> 
+    <title>Menú Principal - Inventario TI</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         body { 
             background-color: #ffffff !important;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-top: 95px; /* Ajustado para la altura real de la top-bar */
+            padding-top: 95px; 
         }
         .top-bar-custom {
             position: fixed;
@@ -64,7 +69,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
             justify-content: center; 
         }
         .menu-card i { 
-            font-size: 2.0rem;
+            font-size: 2.0rem; 
             margin-bottom: 0.75rem; 
             display: block;
             margin-left: auto;
@@ -74,25 +79,25 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
             font-weight: 500;
             color: #333;
             margin-bottom: 0.5rem; 
+            font-size: 1rem; 
         }
         .menu-card .card-text {
-            font-size: 0.85rem;
+            font-size: 0.8rem; 
             color: #555; 
-            min-height: 40px; 
+            min-height: 35px; 
             flex-grow: 1; 
         }
         .page-header-title {
             color: #191970;
         }
-        /* Estilo para el nuevo botón de cambiar contraseña */
         .btn-change-password {
-            color: #6c757d; /* Color gris secundario de Bootstrap */
+            color: #6c757d; 
             text-decoration: none;
-            font-size: 1.2rem; /* Tamaño del icono */
-            margin-right: 0.75rem; /* Espacio antes del botón de cerrar sesión */
+            font-size: 1.2rem; 
+            margin-right: 0.75rem; 
         }
         .btn-change-password:hover {
-            color: #191970; /* Color principal al pasar el mouse */
+            color: #191970; 
         }
     </style>
 </head>
@@ -108,7 +113,6 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
                 <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?> 
                 (<?= htmlspecialchars(ucfirst($rol_usuario_actual_sesion)) ?>)
             </span>
-
             <a href="cambiar_clave.php" class="btn-change-password" title="Cambia tu Contraseña">
                 <i class="bi bi-key-fill"></i>
             </a>
@@ -132,6 +136,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
             <p class="fs-5 text-muted">Seleccione una opción para comenzar.</p>
         </div>
         
+
         <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 justify-content-center">
             <?php if (tiene_permiso_para('crear_activo')): ?>
             <div class="col">
@@ -149,7 +154,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
             <?php if (tiene_permiso_para('buscar_activo')): ?>
             <div class="col">
-                 <a href="buscar.php" class="card-link">
+                <a href="buscar.php" class="card-link">
                 <div class="card menu-card h-100">
                     <div class="card-body">
                         <i class="bi bi-search text-info"></i>
@@ -161,9 +166,26 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
             </div>
             <?php endif; ?>
             
+            <?php 
+            // TARJETA GESTIONAR PRÉSTAMOS MOVIDA AQUÍ (TERCER LUGAR)
+            if (tiene_permiso_para('gestionar_prestamos')): 
+            ?>
+            <div class="col">
+                <a href="gestion_prestamos.php" class="card-link">
+                <div class="card menu-card h-100">
+                    <div class="card-body">
+                        <i class="bi bi-arrow-left-right text-secondary"></i>
+                        <h5 class="card-title">Gestionar Préstamos</h5>
+                        <p class="card-text">Registrar y seguir préstamos de activos.</p>
+                    </div>
+                </div>
+                </a>
+            </div>
+            <?php endif; ?>
+
             <?php if (tiene_permiso_para('editar_activo_detalles') || tiene_permiso_para('trasladar_activo')): ?>
             <div class="col">
-                 <a href="editar.php" class="card-link">
+                <a href="editar.php" class="card-link">
                 <div class="card menu-card h-100">
                     <div class="card-body">
                         <i class="bi bi-pencil-square text-primary"></i>
@@ -177,7 +199,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
             <?php if (tiene_permiso_para('registrar_mantenimiento')): ?>
             <div class="col">
-                 <a href="mantenimiento.php" class="card-link">
+                <a href="mantenimiento.php" class="card-link">
                 <div class="card menu-card h-100">
                     <div class="card-body">
                         <i class="bi bi-tools text-info"></i>
@@ -191,7 +213,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
             <?php if (tiene_permiso_para('ver_dashboard')): ?>
             <div class="col">
-                 <a href="dashboard.php" class="card-link">
+                <a href="dashboard.php" class="card-link">
                 <div class="card menu-card h-100">
                     <div class="card-body">
                         <i class="bi bi-bar-chart-line-fill text-secondary"></i>
@@ -205,7 +227,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
             <?php if (tiene_permiso_para('generar_informes')): ?>
             <div class="col">
-                 <a href="informes.php" class="card-link">
+                <a href="informes.php" class="card-link">
                 <div class="card menu-card h-100">
                     <div class="card-body">
                         <i class="bi bi-file-earmark-text-fill text-warning"></i>
@@ -219,12 +241,12 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
 
             <?php if (tiene_permiso_para('gestionar_usuarios')): ?>
             <div class="col">
-                 <a href="centro_gestion.php" class="card-link">
+                <a href="centro_gestion.php" class="card-link">
                 <div class="card menu-card h-100">
                     <div class="card-body">
-                        <i class="bi bi-people-fill text-primary"></i>
+                        <i class="bi bi-gear-wide-connected text-primary"></i>
                         <h5 class="card-title">Centro de Gestión</h5>
-                        <p class="card-text">Administrar Usuarios, Roles,Cargos Y Activos.</p>
+                        <p class="card-text">Usuarios, Roles, Cargos, Tipos de Activo, Proveedores.</p>
                     </div>
                 </div>
                 </a>
@@ -233,7 +255,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
             
             <?php if (tiene_permiso_para('ver_depreciacion')): ?>
             <div class="col">
-                 <a href="depreciacion_activos.php" class="card-link"> <div class="card menu-card h-100">
+                <a href="depreciacion_activos.php" class="card-link"> <div class="card menu-card h-100">
                     <div class="card-body">
                         <i class="bi bi-graph-down text-dark"></i>
                         <h5 class="card-title">Depreciación de Activos</h5>
@@ -243,36 +265,14 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
                 </a>
             </div>
             <?php endif; ?>
-
+            
             </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <div id="chatbot-button"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" class="bi bi-chat-dots-fill" viewBox="0 0 16 16"><path d="M16 8c0 3.866-3.582 7-8 7a9.06 9.06 0 0 1-2.347-.306c-.584.296-1.925.864-4.181 1.234-.2.032-.352-.176-.273-.362.354-.836.674-1.95.77-2.966C.744 11.37 0 9.76 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7zM5 8a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm4 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg></div>
-    <div id="chatbot-container"><div id="chatbot-header"><span>Mi Chatbot</span><span id="chatbot-close-button">&times;</span></div><iframe id="chatbot-iframe" src="" frameborder="0"></iframe></div>
-    <style>#chatbot-button{position:fixed;bottom:25px;right:25px;width:60px;height:60px;background-color:#007bff;color:white;border-radius:50%;display:flex;justify-content:center;align-items:center;cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,.2);z-index:999;transition:transform .2s}#chatbot-button:hover{transform:scale(1.1)}#chatbot-container{position:fixed;bottom:100px;right:25px;width:370px;height:70vh;max-height:500px;background-color:white;border-radius:15px;box-shadow:0 4px 12px rgba(0,0,0,.2);display:none;flex-direction:column;overflow:hidden;z-index:1000}#chatbot-header{background-color:#007bff;color:white;padding:10px 15px;font-weight:700;display:flex;justify-content:space-between;align-items:center}#chatbot-close-button{cursor:pointer;font-size:24px;font-weight:700}#chatbot-iframe{width:100%;height:100%;border:none}#chatbot-container.visible{display:flex}</style>
-    <script>
-        document.addEventListener("DOMContentLoaded",function(){
-            const chatbotUrl = "https://asistenteaifront.onrender.com/"; 
-            const chatButton = document.getElementById('chatbot-button');
-            const chatbotContainer = document.getElementById('chatbot-container');
-            const chatbotIframe = document.getElementById('chatbot-iframe');
-            const closeButton = document.getElementById('chatbot-close-button');
-            let isChatbotLoaded = false;
-            function openChat(){
-                if(!isChatbotLoaded){
-                    chatbotIframe.src = chatbotUrl;
-                    isChatbotLoaded = true;
-                }
-                chatbotContainer.classList.add('visible');
-            }
-            function closeChat(){
-                chatbotContainer.classList.remove('visible');
-            }
-            chatButton.addEventListener('click', openChat);
-            closeButton.addEventListener('click', closeChat);
-        });
-    </script>
+    <div id="chatbot-button">...</div>
+    <div id="chatbot-container">...</div>
+    <style></style>
+    <script></script>
 </body>
 </html>

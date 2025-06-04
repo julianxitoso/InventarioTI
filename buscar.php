@@ -174,7 +174,7 @@ function getEstadoBadgeClass($estado) {
                 <input type="text" class="form-control form-control-sm" id="cedula_buscar" name="cedula" value="<?= htmlspecialchars($cedula_buscada) ?>" placeholder="Número de cédula">
             </div>
             <div class="col-md-2">
-                <label for="regional_buscar" class="form-label">Regional (Responsable)</label>
+                <label for="regional_buscar" class="form-label">Regional</label>
                 <select name="regional" class="form-select form-select-sm" id="regional_buscar">
                     <option value="">-- Todas --</option>
                     <?php foreach ($regionales as $r): ?>
@@ -183,7 +183,7 @@ function getEstadoBadgeClass($estado) {
                 </select>
             </div>
             <div class="col-md-2">
-                <label for="empresa_buscar" class="form-label">Empresa (Responsable)</label>
+                <label for="empresa_buscar" class="form-label">Empresa</label>
                 <select name="empresa" class="form-select form-select-sm" id="empresa_buscar">
                     <option value="">-- Todas --</option>
                     <?php foreach ($empresas_disponibles as $e): ?>
