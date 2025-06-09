@@ -38,7 +38,7 @@ $regionales = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', '
 $empresas_disponibles = ['Arpesod', 'Finansueños'];
 $opciones_tipo_equipo = ['Portátil', 'Mesa', 'Todo en 1'];
 $opciones_red = ['Cableada', 'Inalámbrica', 'Ambas'];
-$opciones_estado_general = ['Bueno', 'Regular', 'Malo', 'Nuevo'];
+$opciones_estado_general = ['Bueno', 'Regular', 'Malo'];
 $opciones_so = ['Windows 10', 'Windows 11', 'Linux', 'MacOS'];
 $opciones_offimatica = ['Office 365', 'Office Home And Business', 'Office 2021', 'Office 2019', 'Office 2016', 'LibreOffice', 'Google Workspace'];
 $opciones_antivirus = ['Microsoft Defender', 'Bitdefender', 'ESET NOD32 Antivirus', 'McAfee Total Protection', 'Kaspersky'];
@@ -165,7 +165,7 @@ unset($_SESSION['error_global']);
                  <div class="col-md-4 mb-3"><label for="serie" class="form-label">Serie / Serial <span class="text-danger">*</span></label><input type="text" class="form-control" id="serie" name="activo_serie" required></div>
             </div>
             <div class="row">
-                 <div class="col-md-4 mb-3"><label for="estado" class="form-label">Estado del Activo <span class="text-danger">*</span></label><select class="form-select" id="estado" name="activo_estado" required><option value="Nuevo">Nuevo</option><?php foreach ($opciones_estado_general as $opcion): if($opcion !== 'Nuevo' && $opcion !== 'Dado de Baja') { ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php } endforeach; ?></select></div>
+                 <div class="col-md-4 mb-3"><label for="estado" class="form-label">Estado del Activo <span class="text-danger">*</span></label><select class="form-select" id="estado" name="activo_estado" required><option value="Seleccione">Seleccione</option><?php foreach ($opciones_estado_general as $opcion): if($opcion !== 'Nuevo' && $opcion !== 'Dado de Baja') { ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php } endforeach; ?></select></div>
                  <div class="col-md-4 mb-3"><label for="valor_aproximado" class="form-label">Valor del Activo (Compra) <span class="text-danger">*</span></label><input type="number" class="form-control" id="valor_aproximado" name="activo_valor_aproximado" step="0.01" min="0" required></div>
                  <div class="col-md-4 mb-3"><label for="codigo_inv" class="form-label">Código Inventario (Opcional)</label><input type="text" class="form-control" id="codigo_inv" name="activo_codigo_inv"></div>
             </div>

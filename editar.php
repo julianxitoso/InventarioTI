@@ -89,9 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $id_activo_a_editar = (int)$_POST['id'];
             $stmt_datos_previos = $conexion->prepare("SELECT a.*, ta.nombre_tipo_activo 
-                                                     FROM activos_tecnologicos a
-                                                     LEFT JOIN tipos_activo ta ON a.id_tipo_activo = ta.id_tipo_activo
-                                                     WHERE a.id = ?");
+                                                      FROM activos_tecnologicos a
+                                                      LEFT JOIN tipos_activo ta ON a.id_tipo_activo = ta.id_tipo_activo
+                                                      WHERE a.id = ?");
             $datos_anteriores_del_activo = null;
             if ($stmt_datos_previos) {
                 $stmt_datos_previos->bind_param('i', $id_activo_a_editar);
@@ -139,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         id_tipo_activo=?, marca=?, serie=?, estado=?, valor_aproximado=?, 
                                         detalles=?, procesador=?, ram=?, disco_duro=?, tipo_equipo=?, 
                                         red=?, sistema_operativo=?, offimatica=?, antivirus=?, fecha_compra=?
-                                    WHERE id=?";
+                                      WHERE id=?";
                 
                 $stmt = $conexion->prepare($sql_update_activo);
                 if (!$stmt) {
@@ -168,159 +168,178 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Content-Type: application/json'); 
         $response = ['success' => false, 'message' => 'Error desconocido durante el traslado.'];
         
-        error_log("--------------------------------------------------------------------");
-        error_log("[TRASLADO DEBUG] Iniciando 'confirmar_traslado_masivo' - " . date("Y-m-d H:i:s"));
-
         if (!tiene_permiso_para('trasladar_activo')) {
             $response['message'] = 'Acción no permitida para su rol.';
-            error_log("[TRASLADO ERROR] Permiso denegado para 'trasladar_activo'. Usuario: " . ($_SESSION['usuario_login'] ?? 'Desconocido'));
             echo json_encode($response);
             exit;
         }
 
         $ids_activos_str = $_POST['ids_activos_seleccionados_traslado'] ?? '';
         $nueva_cedula_resp_traslado = trim($_POST['nueva_cedula_traslado'] ?? '');
-        
         $nueva_regional_usuario_destino = trim($_POST['nueva_regional_traslado'] ?? '');
         $nueva_empresa_usuario_destino = trim($_POST['nueva_empresa_traslado'] ?? '');
+        $cedula_origen = $_POST['cedula_original_busqueda'] ?? '';
 
-        error_log("[TRASLADO DEBUG] POST Data: Cedula Nuevo Resp='{$nueva_cedula_resp_traslado}', Nueva Regional Usuario='{$nueva_regional_usuario_destino}', Nueva Empresa Usuario='{$nueva_empresa_usuario_destino}', IDs Activos Str='{$ids_activos_str}'");
-
-        $id_nuevo_responsable_traslado = null;
-        $nuevo_nombre_resp_traslado = ''; 
-
-        if (empty($nueva_cedula_resp_traslado)) {
-            $response['message'] = 'Error: La nueva cédula del responsable es obligatoria.';
-            error_log("[TRASLADO ERROR] Cédula del nuevo responsable vacía.");
-            echo json_encode($response);
-            exit;
-        }
-        if (empty($nueva_regional_usuario_destino) || empty($nueva_empresa_usuario_destino)) {
-            $response['message'] = 'Error: Debe seleccionar la nueva regional y empresa para el usuario de destino.';
-            error_log("[TRASLADO ERROR] Nueva regional ('{$nueva_regional_usuario_destino}') o empresa ('{$nueva_empresa_usuario_destino}') para el usuario destino está vacía.");
-            echo json_encode($response);
-            exit;
-        }
-        
-        $stmt_get_new_user = $conexion->prepare("SELECT id, nombre_completo FROM usuarios WHERE usuario = ?");
-        if ($stmt_get_new_user) {
-            $stmt_get_new_user->bind_param("s", $nueva_cedula_resp_traslado);
-            $stmt_get_new_user->execute();
-            $res_new_user = $stmt_get_new_user->get_result();
-            if ($row_new_user = $res_new_user->fetch_assoc()) {
-                $id_nuevo_responsable_traslado = $row_new_user['id'];
-                $nuevo_nombre_resp_traslado = $row_new_user['nombre_completo'];
-            }
-            $stmt_get_new_user->close();
-        } else {
-            error_log("[TRASLADO ERROR] Fallo al PREPARAR consulta para obtener datos del nuevo usuario (stmt_get_new_user): " . $conexion->error);
-        }
-        
-        error_log("[TRASLADO DEBUG] Búsqueda nuevo usuario: ID={$id_nuevo_responsable_traslado}, Nombre='{$nuevo_nombre_resp_traslado}' para Cédula='{$nueva_cedula_resp_traslado}'");
-
-        if ($id_nuevo_responsable_traslado === null) {
-            $response['message'] = 'Error: La nueva cédula del responsable para el traslado no existe en el sistema.';
-            error_log("[TRASLADO ERROR] ID del nuevo responsable es NULL después de la búsqueda. Cédula buscada: '{$nueva_cedula_resp_traslado}'");
-            echo json_encode($response);
-            exit;
-        }
-        if (empty($ids_activos_str)) {
-            $response['message'] = 'Error: No se seleccionaron activos para el traslado.';
-            error_log("[TRASLADO ERROR] IDs de activos para trasladar está vacío.");
+        if (empty($nueva_cedula_resp_traslado) || empty($ids_activos_str) || empty($nueva_regional_usuario_destino) || empty($nueva_empresa_usuario_destino)) {
+            $response['message'] = 'Error: Faltan datos obligatorios para realizar el traslado.';
             echo json_encode($response);
             exit;
         }
         
         $conexion->begin_transaction();
-        error_log("[TRASLADO DEBUG] Iniciando transacción BD.");
         try {
-            $sql_update_usuario = "UPDATE usuarios SET regional = ?, empresa = ? WHERE id = ?";
-            $stmt_update_usuario = $conexion->prepare($sql_update_usuario);
-
-            if (!$stmt_update_usuario) {
-                error_log("[TRASLADO ERROR] Fallo al PREPARAR actualización de tabla 'usuarios': " . $conexion->error);
-                throw new Exception("Error al preparar la actualización del usuario destino.");
+            $stmt_get_new_user = $conexion->prepare("SELECT id, nombre_completo FROM usuarios WHERE usuario = ?");
+            $stmt_get_new_user->bind_param("s", $nueva_cedula_resp_traslado);
+            $stmt_get_new_user->execute();
+            $result_new_user = $stmt_get_new_user->get_result();
+            if ($row_new_user = $result_new_user->fetch_assoc()) {
+                $id_nuevo_responsable_traslado = $row_new_user['id'];
+                $nuevo_nombre_resp_traslado = $row_new_user['nombre_completo'];
+            } else {
+                throw new Exception("La cédula del nuevo responsable no existe en el sistema.");
             }
+            $stmt_get_new_user->close();
 
-            error_log("[TRASLADO DEBUG] Antes de bind_param para 'usuarios': Regional='{$nueva_regional_usuario_destino}', Empresa='{$nueva_empresa_usuario_destino}', ID Usuario={$id_nuevo_responsable_traslado}");
+            $stmt_update_usuario = $conexion->prepare("UPDATE usuarios SET regional = ?, empresa = ? WHERE id = ?");
             $stmt_update_usuario->bind_param("ssi", $nueva_regional_usuario_destino, $nueva_empresa_usuario_destino, $id_nuevo_responsable_traslado);
-
-            if (!$stmt_update_usuario->execute()) {
-                error_log("[TRASLADO ERROR] Fallo al EJECUTAR actualización de tabla 'usuarios' para ID {$id_nuevo_responsable_traslado}: " . $stmt_update_usuario->error);
-                throw new Exception("Error al actualizar datos del usuario destino.");
-            }
-
-            $affected_rows_usuario = $stmt_update_usuario->affected_rows;
-            error_log("[TRASLADO INFO] Actualización tabla 'usuarios': ID Usuario={$id_nuevo_responsable_traslado}, Regional='{$nueva_regional_usuario_destino}', Empresa='{$nueva_empresa_usuario_destino}'. Filas afectadas: {$affected_rows_usuario}");
+            $stmt_update_usuario->execute();
             $stmt_update_usuario->close();
 
             $ids_array = array_filter(explode(',', $ids_activos_str), 'is_numeric');
             if (empty($ids_array)) {
-                error_log("[TRASLADO ERROR] Array de IDs de activos vacío después de filtrar.");
-                throw new Exception("No se seleccionaron activos válidos para el traslado (después de filtrar).");
+                throw new Exception("No se seleccionaron activos válidos para el traslado.");
             }
-            $placeholders = implode(',', array_fill(0, count($ids_array), '?'));
-
+            $placeholders = str_repeat('?,', count($ids_array) - 1) . '?';
             $sql_update_activos = "UPDATE activos_tecnologicos SET id_usuario_responsable = ? WHERE id IN ($placeholders)";
-            $types_activos = 'i' . str_repeat('i', count($ids_array));
-            $params_traslado_activos = array_merge([$id_nuevo_responsable_traslado], $ids_array);
-            
+            $types = 'i' . str_repeat('i', count($ids_array));
+            $params = array_merge([$id_nuevo_responsable_traslado], $ids_array);
             $stmt_update_activos = $conexion->prepare($sql_update_activos);
-            if (!$stmt_update_activos) {
-                error_log("[TRASLADO ERROR] Fallo al PREPARAR actualización de 'activos_tecnologicos': " . $conexion->error);
-                throw new Exception("Error al preparar la actualización de traslado de activos.");
+            $stmt_update_activos->bind_param($types, ...$params);
+            $stmt_update_activos->execute();
+            $stmt_update_activos->close();
+
+            // --- INICIO DE LA MEJORA: REGISTRO DE HISTORIAL COMPLETO ---
+            $datos_origen = null;
+            if (!empty($cedula_origen)) {
+                $stmt_origen = $conexion->prepare("SELECT u.nombre_completo, c.nombre_cargo FROM usuarios u LEFT JOIN cargos c ON u.id_cargo = c.id_cargo WHERE u.usuario = ?");
+                if($stmt_origen){
+                    $stmt_origen->bind_param('s', $cedula_origen);
+                    $stmt_origen->execute();
+                    $datos_origen = $stmt_origen->get_result()->fetch_assoc();
+                    $stmt_origen->close();
+                }
             }
 
-            error_log("[TRASLADO DEBUG] Antes de bind_param para 'activos_tecnologicos': Nuevo Responsable ID={$id_nuevo_responsable_traslado}, IDs Activos=" . implode(",", $ids_array));
-            $stmt_update_activos->bind_param($types_activos, ...$params_traslado_activos);
-
-            if (!$stmt_update_activos->execute()) {
-                error_log("[TRASLADO ERROR] Fallo al EJECUTAR actualización de 'activos_tecnologicos'. Nuevo Responsable ID={$id_nuevo_responsable_traslado}, Error: " . $stmt_update_activos->error);
-                throw new Exception("Error al ejecutar el traslado de activos.");
-            }
-            $affected_rows_activos = $stmt_update_activos->affected_rows;
-            error_log("[TRASLADO INFO] Actualización tabla 'activos_tecnologicos': Nuevo Responsable ID={$id_nuevo_responsable_traslado}. IDs Activos=" . implode(",", $ids_array) . ". Filas afectadas: {$affected_rows_activos}");
-            
             foreach ($ids_array as $id_activo) {
-                $desc_historial = "Activo trasladado al responsable: " . htmlspecialchars($nuevo_nombre_resp_traslado) . 
-                                  " (C.C: " . htmlspecialchars($nueva_cedula_resp_traslado) . ").";
-                $desc_historial .= " Regional Usuario Destino: ".htmlspecialchars($nueva_regional_usuario_destino).
-                                   ", Empresa Usuario Destino: ".htmlspecialchars($nueva_empresa_usuario_destino);
+                $desc_historial = "Activo trasladado desde '" . ($datos_origen['nombre_completo'] ?? $cedula_origen) . "' hacia '" . htmlspecialchars($nuevo_nombre_resp_traslado) . "'.";
                 
-                registrar_evento_historial($conexion, $id_activo, HISTORIAL_TIPO_TRASLADO, $desc_historial, 
-                    $usuario_actual_sistema_para_historial, null, 
-                    [
-                        'destino_id_usuario' => $id_nuevo_responsable_traslado, 
-                        'destino_cedula' => $nueva_cedula_resp_traslado, 
-                        'destino_nombre' => $nuevo_nombre_resp_traslado, 
-                        'nueva_regional_usuario_destino' => $nueva_regional_usuario_destino,
-                        'nueva_empresa_usuario_destino' => $nueva_empresa_usuario_destino
-                    ]
-                );
-            }
-            
-            $conexion->commit();
-            error_log("[TRASLADO INFO] Transacción completada (commit).");
-            
-            if(isset($stmt_update_activos)) $stmt_update_activos->close();
+                $datos_anteriores_historial = [
+                    'nombre_responsable_anterior' => $datos_origen['nombre_completo'] ?? 'No disponible',
+                    'cedula_responsable_anterior' => $cedula_origen,
+                    'cargo_responsable_anterior' => $datos_origen['nombre_cargo'] ?? 'No disponible'
+                ];
+                
+                $datos_nuevos_historial = [
+                    'destino_nombre' => $nuevo_nombre_resp_traslado,
+                    'destino_cedula' => $nueva_cedula_resp_traslado,
+                    'nueva_regional_usuario' => $nueva_regional_usuario_destino,
+                    'nueva_empresa_usuario' => $nueva_empresa_usuario_destino
+                ];
 
+                registrar_evento_historial($conexion, $id_activo, HISTORIAL_TIPO_TRASLADO, $desc_historial, $usuario_actual_sistema_para_historial, $datos_anteriores_historial, $datos_nuevos_historial);
+            }
+            // --- FIN DE LA MEJORA ---
+
+            $conexion->commit();
             $response['success'] = true;
-            $response['message'] = '¡Traslado completado! ' . count($ids_array) . ' activo(s) reasignados y datos del usuario destino actualizados.';
+            $response['message'] = '¡Traslado completado! ' . count($ids_array) . ' activo(s) han sido reasignados.';
 
         } catch (Exception $e) {
             $conexion->rollback();
-            error_log("[TRASLADO EXCEPTION] " . $e->getMessage() . ". Transacción revertida (rollback).");
-            $response['message'] = "Error en el proceso de traslado: " . $e->getMessage();
+            $response['message'] = 'Error en el traslado: ' . $e->getMessage();
         }
         echo json_encode($response);
-        exit; 
-
+        exit;
     } elseif (isset($_POST['eliminar_activo_submit'])) {
         $accion_realizada = true;
-        // ... (Tu código para eliminar activo) ...
+        if (!tiene_permiso_para('eliminar_activo_fisico')) {
+            $mensaje = "<div class='alert alert-danger'>Acción no permitida para su rol.</div>";
+        } elseif (empty($_POST['id'])) {
+            $mensaje = "<div class='alert alert-danger'>Error: No se especificó el ID del activo a eliminar.</div>";
+        } else {
+            $id_activo_a_eliminar = (int)$_POST['id'];
+            $total_prestamos = 0;
+            
+            $sql_verificar = "SELECT COUNT(*) FROM prestamos_activos WHERE id_activo = ?";
+            $stmt_verificar = $conexion->prepare($sql_verificar);
+            if ($stmt_verificar) {
+                $stmt_verificar->bind_param('i', $id_activo_a_eliminar);
+                $stmt_verificar->execute();
+                $stmt_verificar->bind_result($total_prestamos);
+                $stmt_verificar->fetch();
+                $stmt_verificar->close();
+            } else {
+                $mensaje = "<div class='alert alert-danger'>Error al verificar las dependencias del activo.</div>";
+                $total_prestamos = -1;
+            }
+    
+            if ($total_prestamos > 0) {
+                $mensaje = "<div class='alert alert-warning'><strong>Acción denegada:</strong> Este activo no se puede eliminar porque tiene préstamos registrados en su historial.</div>";
+            } elseif ($total_prestamos === 0) {
+                $conexion->begin_transaction();
+                try {
+                    $sql_eliminar_activo = "DELETE FROM activos_tecnologicos WHERE id = ?";
+                    $stmt_activo = $conexion->prepare($sql_eliminar_activo);
+                    if (!$stmt_activo) { throw new Exception("Error al preparar la eliminación: " . $conexion->error); }
+                    
+                    $stmt_activo->bind_param('i', $id_activo_a_eliminar);
+                    $stmt_activo->execute();
+    
+                    if ($stmt_activo->affected_rows > 0) {
+                        $conexion->commit();
+                        $mensaje = "<div class='alert alert-success'>Activo ID: " . htmlspecialchars($id_activo_a_eliminar) . " eliminado permanentemente.</div>";
+                    } else {
+                        throw new Exception("El activo no se encontró para eliminar. Es posible que ya haya sido borrado.");
+                    }
+                    $stmt_activo->close();
+    
+                } catch (Exception $e) {
+                    $conexion->rollback();
+                    $mensaje = "<div class='alert alert-danger'>Error en la eliminación: " . $e->getMessage() . "</div>";
+                }
+            }
+        }
     } elseif (isset($_POST['submit_dar_baja'])) {
         $accion_realizada = true;
-        // ... (Tu código para dar de baja) ...
+        if (!tiene_permiso_para('dar_baja_activo')) {
+            $mensaje = "<div class='alert alert-danger'>Acción no permitida para su rol.</div>";
+        } elseif (empty($_POST['id_activo_baja']) || empty($_POST['motivo_baja'])) {
+            $mensaje = "<div class='alert alert-danger'>Error: Faltan datos para procesar la baja.</div>";
+        } else {
+            $id_activo_para_baja = (int)$_POST['id_activo_baja'];
+            $motivo_baja = $_POST['motivo_baja'];
+            $observaciones_baja = $_POST['observaciones_baja'] ?? '';
+            
+            // Nota: Se asume que las columnas fecha_baja, motivo_baja y observaciones_baja existen en la tabla activos_tecnologicos.
+            // Si no existen, ejecute el ALTER TABLE que se proporcionó anteriormente.
+            $sql_dar_baja = "UPDATE activos_tecnologicos SET estado = 'Dado de Baja', motivo_baja = ?, observaciones_baja = ?, fecha_baja = NOW() WHERE id = ?";
+            $stmt_baja = $conexion->prepare($sql_dar_baja);
+
+            if (!$stmt_baja) {
+                $mensaje = "<div class='alert alert-danger'>Error al preparar baja: " . $conexion->error . ". Asegúrese que las columnas 'fecha_baja', 'motivo_baja', 'observaciones_baja' existan.</div>";
+            } else {
+                $stmt_baja->bind_param('ssi', $motivo_baja, $observaciones_baja, $id_activo_para_baja);
+                
+                if ($stmt_baja->execute()) {
+                    $mensaje = "<div class='alert alert-success'>Activo ID: " . htmlspecialchars($id_activo_para_baja) . " ha sido dado de baja.</div>";
+                    $descripcion_historial_baja = "Activo dado de baja. Motivo: " . htmlspecialchars($motivo_baja) . ". Observaciones: " . htmlspecialchars($observaciones_baja);
+                    registrar_evento_historial($conexion, $id_activo_para_baja, HISTORIAL_TIPO_BAJA, $descripcion_historial_baja, $usuario_actual_sistema_para_historial);
+                } else {
+                    $mensaje = "<div class='alert alert-danger'>Error al dar de baja: " . $stmt_baja->error . "</div>";
+                }
+                $stmt_baja->close();
+            }
+        }
     }
 
     if ($accion_realizada && !(isset($_POST['action']) && $_POST['action'] === 'confirmar_traslado_masivo')) {
@@ -340,16 +359,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-error_log("--------------------------------------------------------------------");
-error_log("[BUSQUEDA DEBUG] Antes de if (\$criterio_buscada_activo) - " . date("Y-m-d H:i:s"));
-error_log("[BUSQUEDA DEBUG] \$cedula_buscada = '{$cedula_buscada}'");
-error_log("[BUSQUEDA DEBUG] \$regional_buscada_usuario = '{$regional_buscada_usuario}'");
-error_log("[BUSQUEDA DEBUG] \$empresa_buscada_usuario = '{$empresa_buscada_usuario}'");
-error_log("[BUSQUEDA DEBUG] \$incluir_dados_baja = " . ($incluir_dados_baja ? 'true' : 'false'));
-error_log("[BUSQUEDA DEBUG] \$criterio_buscada_activo = " . ($criterio_buscada_activo ? 'true' : 'false'));
-
 if ($criterio_buscada_activo) {
-    error_log("[BUSQUEDA DEBUG] Dentro de if (\$criterio_buscada_activo) - Iniciando construcción de SQL.");
     $sql_select = "SELECT 
                         a.*, 
                         u.usuario AS cedula_responsable,
@@ -393,33 +403,21 @@ if ($criterio_buscada_activo) {
     
     $sql_select .= " ORDER BY u.nombre_completo ASC, u.usuario ASC, a.id ASC"; 
 
-    error_log("[BUSQUEDA DEBUG] SQL construida: " . $sql_select);
-    error_log("[BUSQUEDA DEBUG] Tipos para bind_param: '" . $types_select_query . "'");
-    error_log("[BUSQUEDA DEBUG] Parámetros para bind_param: " . print_r($params_select_query, true));
-
     $stmt_select = $conexion->prepare($sql_select);
     if ($stmt_select) {
-        error_log("[BUSQUEDA DEBUG] SQL prepare para búsqueda successful.");
         if (!empty($params_select_query)) {
             $stmt_select->bind_param($types_select_query, ...$params_select_query);
-            error_log("[BUSQUEDA DEBUG] bind_param para búsqueda successful.");
         }
         if ($stmt_select->execute()) {
-            error_log("[BUSQUEDA DEBUG] SQL execute para búsqueda successful.");
             $result_select = $stmt_select->get_result();
             $activos_encontrados = $result_select->fetch_all(MYSQLI_ASSOC);
-            error_log("[BUSQUEDA DEBUG] Número de activos encontrados: " . count($activos_encontrados));
         } else {
             if (empty($mensaje)) $mensaje = "<div class='alert alert-danger'>Error búsqueda: " . $stmt_select->error . "</div>";
-            error_log("[BUSQUEDA ERROR] Error al ejecutar la consulta de búsqueda: " . $stmt_select->error);
         }
         $stmt_select->close();
     } else {
         if (empty($mensaje)) $mensaje = "<div class='alert alert-danger'>Error preparando búsqueda: " . $conexion->error . "</div>";
-        error_log("[BUSQUEDA ERROR] Error al PREPARAR la consulta de búsqueda: " . $conexion->error . " (SQL: " . $sql_select . ")");
     }
-} else {
-     error_log("[BUSQUEDA DEBUG] \$criterio_buscada_activo es false, no se ejecuta la consulta de búsqueda.");
 }
 
 $opciones_tipo_activo_nombres = []; 
@@ -579,11 +577,6 @@ if (!function_exists('textarea_editable')) {
                     }
 
                     foreach ($asset_forms_data as $cedula_grupo => $data_grupo):
-                        $btn_acta_text = 'Generar Acta de Entrega';
-                        $acta_url_params = "cedula=" . urlencode($data_grupo['info']['cedula']) . "&tipo_acta=entrega";
-                        if (!empty($data_grupo['info']['empresa_responsable'])) {
-                            $acta_url_params .= "&empresa=" . urlencode($data_grupo['info']['empresa_responsable']);
-                        }
                 ?>
                         <div class="user-asset-group mt-4" id="user-group-<?= htmlspecialchars($cedula_grupo) ?>">
                             <div class="user-info-header">
@@ -604,11 +597,6 @@ if (!function_exists('textarea_editable')) {
                                         data-regional-origen="<?= htmlspecialchars($data_grupo['info']['regional_responsable'] ?? '') ?>">
                                         <i class="bi bi-truck"></i> Trasladar Seleccionados
                                     </button>
-                                    <?php endif; ?>
-                                    <?php if (tiene_permiso_para('generar_informes')): ?>
-                                    <a href="generar_acta.php?<?= $acta_url_params ?>" class="btn btn-sm btn-outline-secondary btn-generate-acta" target="_blank" title="<?= $btn_acta_text ?>">
-                                        <i class="bi bi-file-earmark-pdf"></i> <?= $btn_acta_text ?>
-                                    </a>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -717,9 +705,9 @@ if (!function_exists('textarea_editable')) {
                     <div class="row">
                         <div class="col-md-6 border-end">
                             <p>Del usuario: <strong id="nombreUsuarioOrigenTrasladoModal"></strong><br>
-                               C.C: <strong id="cedulaUsuarioOrigenTrasladoModal"></strong><br>
-                               Empresa Origen (Usuario): <strong id="empresaUsuarioOrigenTrasladoModal"></strong><br>
-                               Regional Origen (Usuario): <strong id="regionalUsuarioOrigenTrasladoModal"></strong></p>
+                                C.C: <strong id="cedulaUsuarioOrigenTrasladoModal"></strong><br>
+                                Empresa Origen (Usuario): <strong id="empresaUsuarioOrigenTrasladoModal"></strong><br>
+                                Regional Origen (Usuario): <strong id="regionalUsuarioOrigenTrasladoModal"></strong></p>
                             <h6>Activos Seleccionados para Traslado:</h6>
                             <ul id="listaActivosTrasladar" class="mb-3"></ul>
                         </div>
@@ -872,7 +860,7 @@ if (!function_exists('textarea_editable')) {
                     }
                     document.getElementById('nueva_cedula_traslado').value = '';
                     document.getElementById('nuevo_nombre_traslado').value = ''; 
-                    document.getElementById('nuevo_cargo_traslado').value = '';   
+                    document.getElementById('nuevo_cargo_traslado').value = '';  
                     document.getElementById('nueva_regional_traslado').value = ''; 
                     document.getElementById('nueva_empresa_traslado').value = '';  
 
@@ -918,7 +906,6 @@ if (!function_exists('textarea_editable')) {
 
                 document.getElementById('confirmarTrasladoBtn').addEventListener('click', function() {
                     let fd = new FormData();
-                    // Parámetros para recargar la página con los filtros correctos después del traslado
                     fd.append('cedula_original_busqueda', document.getElementById('cedula_buscar').value);
                     fd.append('regional_original_busqueda', document.getElementById('regional_buscar').value);
                     fd.append('empresa_original_busqueda', document.getElementById('empresa_buscar').value);
@@ -927,8 +914,8 @@ if (!function_exists('textarea_editable')) {
                     fd.append('action', 'confirmar_traslado_masivo');
                     
                     const nCed = document.getElementById('nueva_cedula_traslado').value.trim();
-                    const nRegUsuario = document.getElementById('nueva_regional_traslado').value; // Ya es trim() en el backend
-                    const nEmpUsuario = document.getElementById('nueva_empresa_traslado').value; // Ya es trim() en el backend
+                    const nRegUsuario = document.getElementById('nueva_regional_traslado').value;
+                    const nEmpUsuario = document.getElementById('nueva_empresa_traslado').value;
 
                     if (!nCed || !nRegUsuario || !nEmpUsuario ) {
                         mostrarInfoModal('Completa los campos','La nueva cédula, regional y empresa del usuario destino son obligatorias.');
@@ -978,7 +965,6 @@ if (!function_exists('textarea_editable')) {
                         msgDiv.innerHTML = `<div class='alert ${d.success?'alert-success':'alert-danger'} alert-dismissible fade show mt-3'>${d.message}<button type='button' class='btn-close' data-bs-dismiss='alert'></button></div>`;
                         if (d.success) {
                             setTimeout(() => {
-                                // Construir los parámetros para la redirección basados en lo que se envió
                                 let redirectUrl = `editar.php?`;
                                 const params = new URLSearchParams();
                                 if (fd.get('cedula_original_busqueda')) params.append('cedula', fd.get('cedula_original_busqueda'));

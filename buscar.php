@@ -201,7 +201,15 @@ function getEstadoBadgeClass($estado) {
                 <button type="submit" class="btn btn-custom-search w-100 btn-sm">Buscar</button>
             </div>
             
-            <?php if (empty($cedula_buscada) && empty($regional_buscada) && empty($empresa_buscada) && !$criterio_busqueda_activo): ?>
+            <?php 
+            // MODIFICACIÓN: Añadir verificación de rol para el botón "Mostrar Todos"
+            if ( (in_array($rol_usuario_actual_sesion, ['admin', 'auditor'])) && 
+                 empty($cedula_buscada) && 
+                 empty($regional_buscada) && 
+                 empty($empresa_buscada) && 
+                 !$criterio_busqueda_activo 
+               ): 
+            ?>
             <div class="col-12 text-center mt-3"> 
                 <button type="submit" name="buscar_todos" value="1" class="btn btn-outline-secondary btn-sm">
                     Mostrar Todos los Activos <?= !$incluir_dados_baja ? '(Operativos)' : '(Incl. Bajas)' ?>
@@ -273,9 +281,7 @@ function getEstadoBadgeClass($estado) {
                             }
                             if ($hay_activos_operativos && (function_exists('tiene_permiso_para') && tiene_permiso_para('generar_informes'))):
                             ?>
-                            <a href="generar_acta.php?cedula=<?= htmlspecialchars($responsable_info['cedula']) ?>&tipo_acta=entrega&empresa=<?=urlencode($responsable_info['empresa_responsable'])?>" class="btn btn-sm btn-outline-secondary" target="_blank" title="Generar Acta de Entrega para <?= htmlspecialchars($responsable_info['nombre']) ?>">
-                                <i class="bi bi-file-earmark-pdf-fill"></i> Generar Acta
-                            </a>
+
                             <?php endif; ?>
                         </div>
                     </div>

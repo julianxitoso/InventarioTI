@@ -1,15 +1,9 @@
 <?php
 session_start();
-require_once 'backend/auth_check.php'; // Este archivo DEBE definir tiene_permiso_para()
+require_once 'backend/auth_check.php'; 
 
-// Definir variables para mostrar nombre y rol del usuario
 $nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
 $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
-
-// Asumimos que en auth_check.php se definen permisos como:
-// 'crear_activo', 'buscar_activo', 'gestionar_prestamos', 'editar_activo_detalles', 'trasladar_activo', 
-// 'registrar_mantenimiento', 'ver_dashboard', 'generar_informes', 
-// 'gestionar_usuarios', 'ver_depreciacion'
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -20,85 +14,101 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
+        html, body {
+            height: 100%; 
+        }
         body { 
             background-color: #ffffff !important;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding-top: 95px; 
+            display: flex; 
+            flex-direction: column; 
+            min-height: 100vh; 
         }
         .top-bar-custom {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 1030;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem 1.5rem;
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1030;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.5rem 1.5rem; background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
-        .logo-container-top img {
-            width: auto;
-            height: 75px;
-            object-fit: contain;
-            margin-right: 15px;
-        }
-        .user-info-top {
-            font-size: 0.9rem;
-        }
+        .logo-container-top img { width: auto; height: 75px; object-fit: contain; margin-right: 15px; }
+        .user-info-top { font-size: 0.9rem; }
+        main.container-main { margin-top: 20px; margin-bottom: 40px; flex-grow: 1; }
+        .page-header-title { color: #191970; }
         .card-link { text-decoration: none; }
         .menu-card {
             transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-            border: 1px solid #e0e0e0;
-            border-radius: 0.5rem;
-            display: flex; 
-            flex-direction: column; 
+            border: 1px solid #e0e0e0; border-radius: 0.5rem; display: flex; 
+            flex-direction: column; background-color: #ffffff; 
         }
-        .menu-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.1);
-        }
+        .menu-card:hover { transform: translateY(-5px); box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.1); }
         .menu-card .card-body { 
-            text-align: center; 
-            padding: 1.0rem; 
-            flex-grow: 1; 
-            display: flex;
-            flex-direction: column;
-            justify-content: center; 
+            text-align: center; padding: 1.0rem; flex-grow: 1; 
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
         }
-        .menu-card i { 
-            font-size: 2.0rem; 
-            margin-bottom: 0.75rem; 
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-        }
+        .menu-card i { font-size: 2.0rem; margin-bottom: 0.75rem; display: block; }
         .menu-card .card-title {
-            font-weight: 500;
-            color: #333;
-            margin-bottom: 0.5rem; 
-            font-size: 1rem; 
+            font-weight: 500; color: #333; margin-bottom: 0.5rem; font-size: 1rem; 
         }
-        .menu-card .card-text {
-            font-size: 0.8rem; 
-            color: #555; 
-            min-height: 35px; 
-            flex-grow: 1; 
+        .menu-card .card-text { font-size: 0.8rem; color: #555; min-height: 35px; }
+        .btn-change-password { color: #6c757d; text-decoration: none; font-size: 1.2rem; margin-right: 0.75rem; }
+        .btn-change-password:hover { color: #0d6efd; }
+
+        .footer-custom {
+            font-size: 0.9rem; background-color: #f8f9fa; 
+            border-top: 1px solid #dee2e6; 
         }
-        .page-header-title {
-            color: #191970;
+        .footer-custom a i { color: #6c757d; transition: color 0.2s ease-in-out; }
+        .footer-custom a i:hover { color: #0d6efd !important; }
+
+        /* ESTILOS PARA EL CHATBOT */
+        #chatbot-button {
+            position: fixed; bottom: 25px; right: 25px; width: 60px; height: 60px;
+            background-color: #007bff; color: white; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 999; transition: transform 0.2s ease-in-out;
         }
-        .btn-change-password {
-            color: #6c757d; 
-            text-decoration: none;
-            font-size: 1.2rem; 
-            margin-right: 0.75rem; 
+        #chatbot-button:hover { transform: scale(1.1); }
+        #chatbot-container {
+            position: fixed; bottom: 95px; right: 25px; width: 370px; 
+            height: 70vh; max-height: 500px; background-color: white;
+            border-radius: 15px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); 
+            display: none; flex-direction: column; overflow: hidden; z-index: 1000;
+            border: 1px solid #dee2e6; 
         }
-        .btn-change-password:hover {
-            color: #191970; 
+        #chatbot-container.visible { display: flex; }
+        #chatbot-header {
+            background-color: #007bff; color: white; padding: 10px 15px;
+            font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #0056b3; 
         }
+        #chatbot-header-content { 
+            display: flex;
+            align-items: center;
+        }
+        #chatbot-header-content img { /* Estilos mejorados para el avatar */
+            width: 52px;  /* Ligeramente más grande */
+            height: 52px; /* Ligeramente más grande */
+            border-radius: 50%; 
+            margin-right: 10px;
+            border: 2px solid #ffffff; /* Borde blanco un poco más grueso */
+            object-fit: cover; /* Asegura que la imagen llene el círculo sin distorsionarse */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2); /* Sombra sutil para dar profundidad */
+        }
+        #chatbot-header-content span { 
+            font-size: 1.1rem;
+        }
+        #chatbot-close-button {
+            cursor: pointer; font-size: 24px; font-weight: bold;
+            padding: 0 5px; 
+            line-height: 1;
+        }
+        #chatbot-close-button:hover {
+            color: #e9ecef;
+        }
+        #chatbot-iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
@@ -122,7 +132,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
         </div>
     </div>
 
-    <div class="container mt-4">
+    <main class="container-main container mt-4">
         <?php if(isset($_SESSION['error_acceso_pagina'])): ?>
             <div class="alert alert-danger alert-dismissible fade show" role="alert">
                 <?= htmlspecialchars($_SESSION['error_acceso_pagina']); ?>
@@ -136,8 +146,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
             <p class="fs-5 text-muted">Seleccione una opción para comenzar.</p>
         </div>
         
-
-        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4 justify-content-center">
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-3 g-4 justify-content-center">
             <?php if (tiene_permiso_para('crear_activo')): ?>
             <div class="col">
                 <a href="index.php" class="card-link">
@@ -166,10 +175,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
             </div>
             <?php endif; ?>
             
-            <?php 
-            // TARJETA GESTIONAR PRÉSTAMOS MOVIDA AQUÍ (TERCER LUGAR)
-            if (tiene_permiso_para('gestionar_prestamos')): 
-            ?>
+            <?php if (tiene_permiso_para('gestionar_prestamos')): ?>
             <div class="col">
                 <a href="gestion_prestamos.php" class="card-link">
                 <div class="card menu-card h-100">
@@ -238,20 +244,6 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
                 </a>
             </div>
             <?php endif; ?>
-
-            <?php if (tiene_permiso_para('gestionar_usuarios')): ?>
-            <div class="col">
-                <a href="centro_gestion.php" class="card-link">
-                <div class="card menu-card h-100">
-                    <div class="card-body">
-                        <i class="bi bi-gear-wide-connected text-primary"></i>
-                        <h5 class="card-title">Centro de Gestión</h5>
-                        <p class="card-text">Usuarios, Roles, Cargos, Tipos de Activo, Proveedores.</p>
-                    </div>
-                </div>
-                </a>
-            </div>
-            <?php endif; ?>
             
             <?php if (tiene_permiso_para('ver_depreciacion')): ?>
             <div class="col">
@@ -265,14 +257,87 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
                 </a>
             </div>
             <?php endif; ?>
+
+            <?php 
+            if (tiene_permiso_para('gestionar_usuarios') || tiene_permiso_para('gestionar_roles') || tiene_permiso_para('gestionar_cargos') || tiene_permiso_para('gestionar_tipos_activo') || tiene_permiso_para('gestionar_proveedores') ): ?>
+            <div class="col">
+                <a href="centro_gestion.php" class="card-link">
+                <div class="card menu-card h-100">
+                    <div class="card-body">
+                        <i class="bi bi-gear-wide-connected text-primary"></i>
+                        <h5 class="card-title">Centro de Gestión</h5>
+                        <p class="card-text">Usuarios, Roles, Cargos, Tipos, Proveedores.</p>
+                    </div>
+                </div>
+                </a>
+            </div>
+            <?php endif; ?>
             
             </div>
+    </main>
+
+    <footer class="footer-custom mt-auto py-3 bg-light border-top shadow-sm">
+        <div class="container text-center">
+            <div class="row align-items-center">
+                <div class="col-md-6 text-md-start mb-2 mb-md-0">
+                    <small class="text-muted">Sitio web desarrollado por <a href="https://www.julianxitoso.com" target="_blank" rel="noopener noreferrer" class="text-decoration-none text-primary">@julianxitoso.com</a></small>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="https://facebook.com/tu_pagina" target="_blank" class="text-muted me-3" title="Facebook">
+                        <i class="bi bi-facebook" style="font-size: 1.5rem;"></i>
+                    </a>
+                    <a href="https://instagram.com/tu_usuario" target="_blank" class="text-muted me-3" title="Instagram">
+                        <i class="bi bi-instagram" style="font-size: 1.5rem;"></i>
+                    </a>
+                    <a href="https://tiktok.com/@tu_usuario" target="_blank" class="text-muted" title="TikTok">
+                        <i class="bi bi-tiktok" style="font-size: 1.5rem;"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <div id="chatbot-button">
+        <i class="bi bi-chat-dots-fill" style="font-size: 28px;"></i>
+    </div>
+    <div id="chatbot-container">
+        <div id="chatbot-header">
+            <div id="chatbot-header-content">
+                <img src="imagenes/dondi.png" alt="DonDi Avatar" 
+                     onerror="this.src='https://placehold.co/32x32/cccccc/ffffff?text=Error'; this.onerror=null;"> 
+                <span>Hola, soy Dondi Sistemas</span>
+            </div>
+            <span id="chatbot-close-button">&times;</span>
+        </div>
+        <iframe id="chatbot-iframe" src="" frameborder="0"></iframe>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <div id="chatbot-button">...</div>
-    <div id="chatbot-container">...</div>
-    <style></style>
-    <script></script>
+    
+    <script>
+        document.addEventListener("DOMContentLoaded",function(){
+            const chatbotUrl = "https://asistenteaifront.onrender.com/"; 
+            const chatButton = document.getElementById('chatbot-button');
+            const chatbotContainer = document.getElementById('chatbot-container');
+            const chatbotIframe = document.getElementById('chatbot-iframe');
+            const closeButton = document.getElementById('chatbot-close-button');
+            let isChatbotLoaded = false; 
+
+            function openChat(){
+                if(!isChatbotLoaded){
+                    chatbotIframe.src = chatbotUrl; 
+                    isChatbotLoaded = true;
+                }
+                chatbotContainer.style.display = 'flex'; 
+            }
+
+            function closeChat(){
+                chatbotContainer.style.display = 'none'; 
+            }
+
+            if(chatButton) chatButton.addEventListener('click', openChat);
+            if(closeButton) closeButton.addEventListener('click', closeChat);
+        });
+    </script>
 </body>
 </html>
