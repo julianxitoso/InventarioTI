@@ -54,6 +54,7 @@ unset($_SESSION['error_global']);
 <head>
     <meta charset="UTF-8">
     <title>Registrar Activos por Lote</title>
+    <link rel="icon" type="image/x-icon" href="imagenes/icono.ico">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
@@ -79,6 +80,12 @@ unset($_SESSION['error_global']);
         .btn-remove-asset { font-size: 0.8em; padding: 0.2rem 0.5rem; }
         #infoAplicacionesExistentes { font-size: 0.85em; }
         input:read-only, select:disabled { background-color: #e9ecef; cursor: not-allowed; }
+        .footer-custom {
+            font-size: 0.9rem; background-color: #f8f9fa; 
+            border-top: 1px solid #dee2e6; 
+        }
+        .footer-custom a i { color: #6c757d; transition: color 0.2s ease-in-out; }
+        .footer-custom a i:hover { color: #0d6efd !important; }
     </style>
 </head>
 <body>
@@ -240,7 +247,28 @@ unset($_SESSION['error_global']);
     </form>
 </div>
 <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="infoModalTitle"><i class="bi bi-exclamation-triangle-fill"></i> Atención</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p id="infoModalMessage"></p></div><div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button></div></div></div></div>
-    
+
+<footer class="footer-custom mt-auto py-3 bg-light border-top shadow-sm">
+        <div class="container text-center">
+            <div class="row align-items-center">
+                <div class="col-md-6 text-md-start mb-2 mb-md-0">
+                    <small class="text-muted">Sitio web desarrollado por <a href="https://www.julianxitoso.com" target="_blank" rel="noopener noreferrer" class="text-decoration-none text-primary">@julianxitoso.com</a></small>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="https://facebook.com/tu_pagina" target="_blank" class="text-muted me-3" title="Facebook">
+                        <i class="bi bi-facebook" style="font-size: 1.5rem;"></i>
+                    </a>
+                    <a href="https://instagram.com/tu_usuario" target="_blank" class="text-muted me-3" title="Instagram">
+                        <i class="bi bi-instagram" style="font-size: 1.5rem;"></i>
+                    </a>
+                    <a href="https://tiktok.com/@tu_usuario" target="_blank" class="text-muted" title="TikTok">
+                        <i class="bi bi-tiktok" style="font-size: 1.5rem;"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
 <script>
     // Todo el script hasta la función de envío permanece igual
     let activosParaGuardar = [];

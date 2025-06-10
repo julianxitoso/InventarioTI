@@ -11,6 +11,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1"> 
     <title>Menú Principal - Inventario TI</title>
+    <link rel="icon" type="image/x-icon" sizes="96x96" href="imagenes/icono.ico">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>

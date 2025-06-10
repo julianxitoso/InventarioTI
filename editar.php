@@ -474,6 +474,7 @@ if (!function_exists('textarea_editable')) {
 <head>
     <meta charset="UTF-8">
     <title>Administrar Activos</title>
+    <link rel="icon" type="image/x-icon" href="imagenes/icono.ico">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
@@ -501,6 +502,7 @@ if (!function_exists('textarea_editable')) {
         #listaActivosTrasladar li { margin-bottom: 3px; }
         .activo-enfocado { border: 2px solid #0d6efd !important; box-shadow: 0 0 15px rgba(13,110,253,0.5) !important; animation: pulse-border 1.5s infinite; }
         @keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(13,110,253,0.7); } 70% { box-shadow: 0 0 0 10px rgba(13,110,253,0); } 100% { box-shadow: 0 0 0 0 rgba(13,110,253,0); } }
+       
     </style>
 </head>
 <body>
@@ -767,7 +769,7 @@ if (!function_exists('textarea_editable')) {
         </div>
     </div>
     <?php endif; ?>
-    
+
     <script>
         let infoModalInstance;
 

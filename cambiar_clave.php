@@ -94,6 +94,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && $cedula_usuario_sesion && empty($err
 <head>
     <meta charset="UTF-8">
     <title>Cambiar Contraseña - Inventario</title>
+    <link rel="icon" type="image/x-icon" href="imagenes/icono.ico">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
