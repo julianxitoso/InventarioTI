@@ -268,36 +268,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mensaje = "<div class='alert alert-danger'>Error: No se especificó el ID del activo a eliminar.</div>";
         } else {
             $id_activo_a_eliminar = (int)$_POST['id'];
-            $total_prestamos = 0;
+            $total_historial = 0;
+    
+            // PASO 1: Verificamos si existe CUALQUIER tipo de historial para este activo.
+            // Esto incluye préstamos, mantenimientos, traslados, etc.
+            $sql_verificar_historial = "SELECT COUNT(*) FROM historial_activos WHERE id_activo = ?";
+            $stmt_verificar = $conexion->prepare($sql_verificar_historial);
             
-            $sql_verificar = "SELECT COUNT(*) FROM prestamos_activos WHERE id_activo = ?";
-            $stmt_verificar = $conexion->prepare($sql_verificar);
             if ($stmt_verificar) {
                 $stmt_verificar->bind_param('i', $id_activo_a_eliminar);
                 $stmt_verificar->execute();
-                $stmt_verificar->bind_result($total_prestamos);
+                $stmt_verificar->bind_result($total_historial);
                 $stmt_verificar->fetch();
                 $stmt_verificar->close();
             } else {
-                $mensaje = "<div class='alert alert-danger'>Error al verificar las dependencias del activo.</div>";
-                $total_prestamos = -1;
+                // Si la verificación falla, no continuamos.
+                $mensaje = "<div class='alert alert-danger'>Error al verificar el historial del activo.</div>";
+                $total_historial = -1; // Usamos un valor negativo para indicar error
             }
     
-            if ($total_prestamos > 0) {
-                $mensaje = "<div class='alert alert-warning'><strong>Acción denegada:</strong> Este activo no se puede eliminar porque tiene préstamos registrados en su historial.</div>";
-            } elseif ($total_prestamos === 0) {
+            // PASO 2: Basado en el CONTEO TOTAL del historial, decidimos qué hacer.
+            if ($total_historial > 0) {
+                // SI HAY CUALQUIER HISTORIAL, mostramos el mensaje amigable y NO BORRAMOS NADA.
+                $mensaje = "<div class='alert alert-primary d-flex align-items-center' role='alert'>" .
+                           "<i class='bi bi-info-circle-fill flex-shrink-0 me-3' style='font-size: 1.5rem;'></i>" .
+                           "<div>" .
+                           "<h5 class='alert-heading'>Acción Protegida: No se puede eliminar</h5>" .
+                           "Este activo no puede ser borrado permanentemente porque **ya tiene un historial de eventos** (préstamos, actualizaciones, etc.)." .
+                           "<hr>" .
+                           "<p class='mb-0'><strong>Solución recomendada:</strong> Para retirar el activo, por favor, utilice el botón <strong>'Dar de Baja'</strong>. Esta acción lo inactivará pero conservará todo su historial para auditorías.</p>" .
+                           "</div>" .
+                           "</div>";
+            } elseif ($total_historial === 0) {
+                // SI NO HAY NINGÚN HISTORIAL, procedemos con la eliminación física.
                 $conexion->begin_transaction();
                 try {
+                    // Como no hay historial que borrar, solo borramos el activo.
                     $sql_eliminar_activo = "DELETE FROM activos_tecnologicos WHERE id = ?";
                     $stmt_activo = $conexion->prepare($sql_eliminar_activo);
-                    if (!$stmt_activo) { throw new Exception("Error al preparar la eliminación: " . $conexion->error); }
+                    if (!$stmt_activo) { throw new Exception("Error al preparar la eliminación del activo: " . $conexion->error); }
                     
                     $stmt_activo->bind_param('i', $id_activo_a_eliminar);
                     $stmt_activo->execute();
     
                     if ($stmt_activo->affected_rows > 0) {
                         $conexion->commit();
-                        $mensaje = "<div class='alert alert-success'>Activo ID: " . htmlspecialchars($id_activo_a_eliminar) . " eliminado permanentemente.</div>";
+                        $mensaje = "<div class='alert alert-success'>Activo ID: " . htmlspecialchars($id_activo_a_eliminar) . " eliminado permanentemente (no tenía historial).</div>";
                     } else {
                         throw new Exception("El activo no se encontró para eliminar. Es posible que ya haya sido borrado.");
                     }

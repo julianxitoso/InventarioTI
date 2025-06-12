@@ -114,20 +114,24 @@ if (!$conexion_error_msg && (isset($_GET['buscar_activo_serie']) || !empty($seri
     if (!empty($serie_buscada)) {
         $activo_encontrado = fetch_activo_completo($conexion, $serie_buscada, false);
 
-        if ($activo_encontrado) {
-            if ($activo_encontrado['estado_actual'] === 'Dado de Baja') {
-                $error_mensaje = "El activo con la serie '" . htmlspecialchars($serie_buscada) . "' ya se encuentra 'Dado de Baja'. No se pueden realizar más acciones de mantenimiento.";
-                $activo_encontrado = null; 
-            } elseif ($activo_encontrado['estado_actual'] === 'En Mantenimiento') {
-                $activo_esta_en_mantenimiento = true;
-            }
+    // DESPUÉS (La corrección robusta):
+
+    // Primero limpiamos el estado para una comparación segura
+    $estado_limpio = strtolower(trim($activo_encontrado['estado_actual']));
+
+    if ($estado_limpio === 'dado de baja') { 
+        $error_mensaje = "El activo con la serie '" . htmlspecialchars($serie_buscada) . "' ya se encuentra 'Dado de Baja'. No se pueden realizar más acciones de mantenimiento."; 
+        $activo_encontrado = null;  
+    } elseif ($estado_limpio === 'en mantenimiento') { 
+        $activo_esta_en_mantenimiento = true; 
+    }
         } else {
             if(empty($error_mensaje) && !$conexion_error_msg) $error_mensaje = "No se encontró ningún activo con la serie '" . htmlspecialchars($serie_buscada) . "'.";
         }
     } elseif (isset($_GET['buscar_activo_serie'])) { 
         $error_mensaje = "Por favor, ingrese un número de serie para buscar.";
     }
-}
+
 
 // --- LÓGICA POST ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$conexion_error_msg) {

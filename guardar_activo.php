@@ -84,7 +84,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 
-    // --- CAMBIO EN LA CONSULTA SQL: Se eliminan 'regional' y 'Empresa' ---
     $sql = "INSERT INTO activos_tecnologicos (
                 id_usuario_responsable, id_tipo_activo, marca, serie, estado, 
                 valor_aproximado, Codigo_Inv, detalles, 
@@ -132,7 +131,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $serie = trim($activo_data['serie'] ?? '');
         $estado = trim($activo_data['estado'] ?? '');
         $valor_aproximado_str = trim($activo_data['valor_aproximado'] ?? '');
-        $codigo_inv_form = trim($activo_data['codigo_inv'] ?? '');
+        
+        // --- INICIO DE LA MODIFICACIÓN (PASO 1 y 2) ---
+        // Se captura el valor original del formulario (puede ser "")
+        $codigo_inv_form = trim($activo_data['codigo_inv'] ?? ''); 
+        // Se crea una nueva variable para la BD. Si la del form está vacía, se asigna NULL.
+        $codigo_inv_para_db = !empty($codigo_inv_form) ? $codigo_inv_form : NULL;
+        // --- FIN DE LA MODIFICACIÓN ---
+
         $detalles = trim($activo_data['detalles'] ?? '');
         $procesador = trim($activo_data['procesador'] ?? '');
         $ram = trim($activo_data['ram'] ?? '');
@@ -149,10 +155,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $metodo_depreciacion = trim($activo_data['metodo_depreciacion'] ?? 'Linea Recta');
         $fecha_inicio_depreciacion = $fecha_compra;
 
-        // --- CAMBIO: Se eliminan $regional_activo y $empresa_activo ya que no se guardan aquí ---
-        // $regional_activo = trim($activo_data['regional'] ?? null); 
-        // $empresa_activo = trim($activo_data['empresa'] ?? null);   
-
         if (empty($nombre_tipo_activo_form) || empty($marca) || empty($serie) || empty($estado) || $valor_aproximado_str === '' || $fecha_compra === null) {
             $errores_guardado[] = "Activo #".($index+1)." (Serie: ".htmlspecialchars($serie)."): Faltan campos obligatorios (Tipo, Marca, Serie, Estado, Valor, Fecha Compra).";
             continue;
@@ -163,16 +165,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             continue;
         }
         
-        // --- CAMBIO EN BIND_PARAM: Se quitan las variables y tipos para regional y empresa ---
+        // --- INICIO DE LA MODIFICACIÓN (PASO 3) ---
         $tipos_bind = "iisssdsssssssssssisss"; // 21 parámetros
         $stmt_activos->bind_param( $tipos_bind, 
             $id_usuario_responsable_para_guardar, $id_tipo_activo_para_guardar, $marca, $serie, $estado,
-            $valor_aproximado, $codigo_inv_form, $detalles,
+            $valor_aproximado, $codigo_inv_para_db, $detalles, // Se usa la nueva variable aquí
             $procesador, $ram, $disco_duro, $tipo_equipo, $red, $sistema_operativo,
             $offimatica, $antivirus, $satisfaccion_rating,
             $fecha_compra, $valor_residual, $metodo_depreciacion, $fecha_inicio_depreciacion
-            // Se eliminaron $regional_activo, $empresa_activo de aquí
         );
+        // --- FIN DE LA MODIFICACIÓN ---
 
         try {
             $stmt_activos->execute();
@@ -183,9 +185,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             registrar_evento_historial($conexion, $id_activo_creado, HISTORIAL_TIPO_CREACION, $descripcion_historial, $usuario_actual_sistema_para_historial, null, $activo_data);
         } catch (mysqli_sql_exception $e) {
             if ($e->getCode() == 1062) { 
-                 if (strpos(strtolower($e->getMessage()), 'serie') !== false) { // Convertir a minúsculas para la comparación
+                 if (strpos(strtolower($e->getMessage()), 'serie') !== false) {
                     $errores_guardado[] = "Activo (Serie: ".htmlspecialchars($serie)."): Esta serie ya se encuentra registrada.";
-                } elseif (strpos(strtolower($e->getMessage()), 'codigo_inv') !== false) { // Convertir a minúsculas
+                } elseif (strpos(strtolower($e->getMessage()), 'codigo_inv') !== false) {
+                    // Mantenemos $codigo_inv_form en el mensaje de error para que el usuario vea "" si lo dejó vacío.
                     $errores_guardado[] = "Activo (Cód. Inv.: ".htmlspecialchars($codigo_inv_form)."): Este Código de Inventario ya se encuentra registrado.";
                 } else {
                     $errores_guardado[] = "Activo (Serie: ".htmlspecialchars($serie)."): Error de entrada duplicada. Verifique serie y código de inventario.";
@@ -207,7 +210,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $_SESSION['error_global'] = $activos_guardados_count . " activo(s) guardado(s), pero con errores en otros: " . implode("; ", $errores_guardado);
     } else { 
         $conexion->rollback();
-        if (empty($errores_guardado)) { // Si no hay errores específicos pero no se guardó nada
+        if (empty($errores_guardado)) {
             $_SESSION['error_global'] = "No se pudo registrar ningún activo. Verifique los datos.";
         } else {
             $_SESSION['error_global'] = "No se pudo registrar ningún activo. Errores: " . implode("; ", $errores_guardado);
