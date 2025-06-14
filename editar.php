@@ -1,17 +1,13 @@
 <?php
-// SUGERENCIA PARA DEPURACIÓN: Añadir temporalmente para facilitar la visualización de logs
-// ini_set('log_errors', 1);
-// ini_set('error_log', dirname(__FILE__) . '/editar_php_errors.log'); // Creará un log en el mismo directorio
-// error_reporting(E_ALL);
-// ini_set('display_errors', 0); // No mostrar errores detallados al usuario en producción
-
 // session_start(); // auth_check.php ya lo incluye y gestiona
-require_once 'backend/auth_check.php';
+// --- MODIFICACIÓN: Usar __DIR__ para rutas absolutas y robustas ---
+require_once __DIR__ . '/backend/auth_check.php';
 restringir_acceso_pagina(['admin', 'tecnico']);
 
-require_once 'backend/db.php';
-require_once 'backend/historial_helper.php';
+require_once __DIR__ . '/backend/db.php';
+require_once __DIR__ . '/backend/historial_helper.php';
 
+// --- Definiciones de constantes (sin cambios) ---
 if (!defined('HISTORIAL_TIPO_ACTUALIZACION')) define('HISTORIAL_TIPO_ACTUALIZACION', 'ACTUALIZACIÓN');
 if (!defined('HISTORIAL_TIPO_TRASLADO')) define('HISTORIAL_TIPO_TRASLADO', 'TRASLADO');
 if (!defined('HISTORIAL_TIPO_BAJA')) define('HISTORIAL_TIPO_BAJA', 'BAJA');
@@ -30,53 +26,35 @@ if (!isset($conexion) || !$conexion || (method_exists($conexion, 'connect_error'
 $conexion->set_charset("utf8mb4");
 
 $mensaje = "";
-$cedula_buscada = '';
-$regional_buscada_usuario = '';
-$empresa_buscada_usuario = '';
 $activos_encontrados = [];
-$incluir_dados_baja = false; 
 
-$regionales_usuarios = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional'];
-$empresas_usuarios_disponibles = ['Arpesod', 'Finansueños'];
+// --- INICIO DE MODIFICACIÓN: Bloque de captura de variables de filtro simplificado ---
+// Se capturan todos los posibles filtros desde la URL (GET)
+// Se mantiene la retrocompatibilidad con el parámetro 'cedula' por si alguna redirección antigua lo usa.
+$q_buscada = trim($_GET['q'] ?? ($_GET['cedula'] ?? ''));
+$tipo_activo_buscado = trim($_GET['tipo_activo'] ?? '');
+$estado_buscado = trim($_GET['estado'] ?? '');
+$regional_buscada_usuario = trim($_GET['regional'] ?? '');
+$empresa_buscada_usuario = trim($_GET['empresa'] ?? '');
+$fecha_desde_buscada = trim($_GET['fecha_desde'] ?? '');
+$fecha_hasta_buscada = trim($_GET['fecha_hasta'] ?? '');
+$incluir_dados_baja = isset($_GET['incluir_bajas']);
 
-$regionales_opciones_traslado_usuario = $regionales_usuarios; 
-$empresas_opciones_traslado_usuario = $empresas_usuarios_disponibles;
+// Un criterio de búsqueda está activo si al menos un filtro tiene valor.
+$criterio_buscada_activo = !empty($q_buscada) || !empty($tipo_activo_buscado) || !empty($estado_buscado) || !empty($regional_buscada_usuario) || !empty($empresa_buscada_usuario) || !empty($fecha_desde_buscada) || !empty($fecha_hasta_buscada);
+// --- FIN DE MODIFICACIÓN ---
 
-$criterio_buscada_activo = false;
 $usuario_actual_sistema_para_historial = $_SESSION['usuario_login'] ?? 'Sistema';
-
-// Determinar los parámetros de búsqueda y el estado del checkbox 'incluir_bajas'
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action']) && $_POST['action'] === 'confirmar_traslado_masivo') {
-        $cedula_buscada = $_POST['cedula_original_busqueda'] ?? '';
-        $regional_buscada_usuario = $_POST['regional_original_busqueda'] ?? '';
-        $empresa_buscada_usuario = $_POST['empresa_original_busqueda'] ?? '';
-        $incluir_dados_baja = isset($_POST['incluir_bajas_original_busqueda']) && $_POST['incluir_bajas_original_busqueda'] === '1';
-    } else {
-        $cedula_buscada = $_POST['cedula_original_busqueda'] ?? '';
-        $regional_buscada_usuario = $_POST['regional_original_busqueda'] ?? '';
-        $empresa_buscada_usuario = $_POST['empresa_original_busqueda'] ?? '';
-        $incluir_dados_baja = isset($_POST['incluir_bajas_original_busqueda']) && $_POST['incluir_bajas_original_busqueda'] === '1';
-    }
-    
-    if (!empty($cedula_buscada) || !empty($regional_buscada_usuario) || !empty($empresa_buscada_usuario) || $incluir_dados_baja || isset($_POST['buscar_todos_post_flag'])) { 
-        $criterio_buscada_activo = true;
-    }
-} else { // GET request
-    $cedula_buscada = $_GET['cedula'] ?? '';
-    $regional_buscada_usuario = $_GET['regional'] ?? '';
-    $empresa_buscada_usuario = $_GET['empresa'] ?? '';
-    $incluir_dados_baja = isset($_GET['incluir_bajas']) && $_GET['incluir_bajas'] === '1';
-    if (!empty($cedula_buscada) || !empty($regional_buscada_usuario) || !empty($empresa_buscada_usuario) || (isset($_GET['buscar_todos']) && $_GET['buscar_todos'] === '1') || isset($_GET['incluir_bajas']) ) {
-        $criterio_buscada_activo = true;
-    }
-}
 
 if (isset($_SESSION['pagina_mensaje'])) {
     $mensaje = $_SESSION['pagina_mensaje'];
     unset($_SESSION['pagina_mensaje']);
 }
 
+
+// #############################################################################
+// ### INICIO DEL BLOQUE DE LÓGICA POST (ACCIONES) - LÓGICA ORIGINAL INTOCADA ###
+// #############################################################################
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accion_realizada = false; 
 
@@ -136,10 +114,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $antivirus_actualizar = $_POST['antivirus'] ?? null;
                 
                 $sql_update_activo = "UPDATE activos_tecnologicos SET 
-                                        id_tipo_activo=?, marca=?, serie=?, estado=?, valor_aproximado=?, 
-                                        detalles=?, procesador=?, ram=?, disco_duro=?, tipo_equipo=?, 
-                                        red=?, sistema_operativo=?, offimatica=?, antivirus=?, fecha_compra=?
-                                      WHERE id=?";
+                                            id_tipo_activo=?, marca=?, serie=?, estado=?, valor_aproximado=?, 
+                                            detalles=?, procesador=?, ram=?, disco_duro=?, tipo_equipo=?, 
+                                            red=?, sistema_operativo=?, offimatica=?, antivirus=?, fecha_compra=?
+                                        WHERE id=?";
                 
                 $stmt = $conexion->prepare($sql_update_activo);
                 if (!$stmt) {
@@ -155,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt->bind_param($tipos_para_update, ...$params_para_update);
                     if ($stmt->execute()) {
                         $mensaje = "<div class='alert alert-success'>Activo ID: " . htmlspecialchars($id_activo_a_editar) . " actualizado.</div>";
-                        // ... (Lógica de historial para editar) ...
+                        // Aquí iría la lógica de historial para la edición...
                     } else {
                         $mensaje = "<div class='alert alert-danger'>Error al actualizar: " . $stmt->error . "</div>";
                     }
@@ -218,7 +196,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_update_activos->execute();
             $stmt_update_activos->close();
 
-            // --- INICIO DE LA MEJORA: REGISTRO DE HISTORIAL COMPLETO ---
             $datos_origen = null;
             if (!empty($cedula_origen)) {
                 $stmt_origen = $conexion->prepare("SELECT u.nombre_completo, c.nombre_cargo FROM usuarios u LEFT JOIN cargos c ON u.id_cargo = c.id_cargo WHERE u.usuario = ?");
@@ -248,7 +225,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 registrar_evento_historial($conexion, $id_activo, HISTORIAL_TIPO_TRASLADO, $desc_historial, $usuario_actual_sistema_para_historial, $datos_anteriores_historial, $datos_nuevos_historial);
             }
-            // --- FIN DE LA MEJORA ---
 
             $conexion->commit();
             $response['success'] = true;
@@ -269,9 +245,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $id_activo_a_eliminar = (int)$_POST['id'];
             $total_historial = 0;
-    
-            // PASO 1: Verificamos si existe CUALQUIER tipo de historial para este activo.
-            // Esto incluye préstamos, mantenimientos, traslados, etc.
+        
             $sql_verificar_historial = "SELECT COUNT(*) FROM historial_activos WHERE id_activo = ?";
             $stmt_verificar = $conexion->prepare($sql_verificar_historial);
             
@@ -282,35 +256,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_verificar->fetch();
                 $stmt_verificar->close();
             } else {
-                // Si la verificación falla, no continuamos.
                 $mensaje = "<div class='alert alert-danger'>Error al verificar el historial del activo.</div>";
-                $total_historial = -1; // Usamos un valor negativo para indicar error
+                $total_historial = -1; 
             }
-    
-            // PASO 2: Basado en el CONTEO TOTAL del historial, decidimos qué hacer.
+        
             if ($total_historial > 0) {
-                // SI HAY CUALQUIER HISTORIAL, mostramos el mensaje amigable y NO BORRAMOS NADA.
                 $mensaje = "<div class='alert alert-primary d-flex align-items-center' role='alert'>" .
                            "<i class='bi bi-info-circle-fill flex-shrink-0 me-3' style='font-size: 1.5rem;'></i>" .
                            "<div>" .
                            "<h5 class='alert-heading'>Acción Protegida: No se puede eliminar</h5>" .
-                           "Este activo no puede ser borrado permanentemente porque **ya tiene un historial de eventos** (préstamos, actualizaciones, etc.)." .
+                           "Este activo no puede ser borrado permanentemente porque **ya tiene un historial de eventos**." .
                            "<hr>" .
                            "<p class='mb-0'><strong>Solución recomendada:</strong> Para retirar el activo, por favor, utilice el botón <strong>'Dar de Baja'</strong>. Esta acción lo inactivará pero conservará todo su historial para auditorías.</p>" .
                            "</div>" .
                            "</div>";
             } elseif ($total_historial === 0) {
-                // SI NO HAY NINGÚN HISTORIAL, procedemos con la eliminación física.
                 $conexion->begin_transaction();
                 try {
-                    // Como no hay historial que borrar, solo borramos el activo.
                     $sql_eliminar_activo = "DELETE FROM activos_tecnologicos WHERE id = ?";
                     $stmt_activo = $conexion->prepare($sql_eliminar_activo);
                     if (!$stmt_activo) { throw new Exception("Error al preparar la eliminación del activo: " . $conexion->error); }
                     
                     $stmt_activo->bind_param('i', $id_activo_a_eliminar);
                     $stmt_activo->execute();
-    
+        
                     if ($stmt_activo->affected_rows > 0) {
                         $conexion->commit();
                         $mensaje = "<div class='alert alert-success'>Activo ID: " . htmlspecialchars($id_activo_a_eliminar) . " eliminado permanentemente (no tenía historial).</div>";
@@ -318,7 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         throw new Exception("El activo no se encontró para eliminar. Es posible que ya haya sido borrado.");
                     }
                     $stmt_activo->close();
-    
+        
                 } catch (Exception $e) {
                     $conexion->rollback();
                     $mensaje = "<div class='alert alert-danger'>Error en la eliminación: " . $e->getMessage() . "</div>";
@@ -336,8 +305,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $motivo_baja = $_POST['motivo_baja'];
             $observaciones_baja = $_POST['observaciones_baja'] ?? '';
             
-            // Nota: Se asume que las columnas fecha_baja, motivo_baja y observaciones_baja existen en la tabla activos_tecnologicos.
-            // Si no existen, ejecute el ALTER TABLE que se proporcionó anteriormente.
             $sql_dar_baja = "UPDATE activos_tecnologicos SET estado = 'Dado de Baja', motivo_baja = ?, observaciones_baja = ?, fecha_baja = NOW() WHERE id = ?";
             $stmt_baja = $conexion->prepare($sql_dar_baja);
 
@@ -360,7 +327,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($accion_realizada && !(isset($_POST['action']) && $_POST['action'] === 'confirmar_traslado_masivo')) {
         $redirect_params = [];
-        if (!empty($_POST['cedula_original_busqueda'])) $redirect_params['cedula'] = $_POST['cedula_original_busqueda'];
+        // --- MODIFICACIÓN: La redirección ahora usa los nuevos parámetros de filtro ---
+        if (!empty($_POST['cedula_original_busqueda'])) $redirect_params['q'] = $_POST['cedula_original_busqueda']; // Mapea la cédula a 'q'
         if (!empty($_POST['regional_original_busqueda'])) $redirect_params['regional'] = $_POST['regional_original_busqueda'];
         if (!empty($_POST['empresa_original_busqueda'])) $redirect_params['empresa'] = $_POST['empresa_original_busqueda'];
         if (isset($_POST['incluir_bajas_original_busqueda']) && $_POST['incluir_bajas_original_busqueda'] === '1') {
@@ -374,7 +342,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 }
+// #############################################################################
+// ### FIN DEL BLOQUE DE LÓGICA POST ###
+// #############################################################################
 
+
+
+// --- INICIO DE MODIFICACIÓN: Lógica de Búsqueda Mejorada ---
 if ($criterio_buscada_activo) {
     $sql_select = "SELECT 
                         a.*, 
@@ -401,9 +375,20 @@ if ($criterio_buscada_activo) {
         $sql_select .= " AND a.estado != 'Dado de Baja'";
     }
 
-    if (!empty($cedula_buscada)) {
-        $sql_select .= " AND u.usuario = ?"; 
-        $params_select_query[] = $cedula_buscada;
+    if (!empty($q_buscada)) {
+        $sql_select .= " AND (u.usuario = ? OR u.nombre_completo LIKE ? OR a.serie LIKE ? OR a.Codigo_Inv LIKE ?)";
+        $searchTermLike = "%{$q_buscada}%";
+        array_push($params_select_query, $q_buscada, $searchTermLike, $searchTermLike, $searchTermLike);
+        $types_select_query .= 'ssss';
+    }
+    if (!empty($tipo_activo_buscado)) {
+        $sql_select .= " AND ta.nombre_tipo_activo = ?";
+        $params_select_query[] = $tipo_activo_buscado;
+        $types_select_query .= 's';
+    }
+    if (!empty($estado_buscado)) {
+        $sql_select .= " AND a.estado = ?";
+        $params_select_query[] = $estado_buscado;
         $types_select_query .= 's';
     }
     if (!empty($regional_buscada_usuario)) { 
@@ -414,6 +399,16 @@ if ($criterio_buscada_activo) {
     if (!empty($empresa_buscada_usuario)) { 
         $sql_select .= " AND u.empresa = ?"; 
         $params_select_query[] = $empresa_buscada_usuario;
+        $types_select_query .= 's';
+    }
+    if (!empty($fecha_desde_buscada)) {
+        $sql_select .= " AND a.fecha_compra >= ?";
+        $params_select_query[] = $fecha_desde_buscada;
+        $types_select_query .= 's';
+    }
+    if (!empty($fecha_hasta_buscada)) {
+        $sql_select .= " AND a.fecha_compra <= ?";
+        $params_select_query[] = $fecha_hasta_buscada;
         $types_select_query .= 's';
     }
     
@@ -435,7 +430,9 @@ if ($criterio_buscada_activo) {
         if (empty($mensaje)) $mensaje = "<div class='alert alert-danger'>Error preparando búsqueda: " . $conexion->error . "</div>";
     }
 }
+// --- FIN DE MODIFICACIÓN ---
 
+// El resto de la preparación de variables PHP se mantiene igual
 $opciones_tipo_activo_nombres = []; 
 $sql_tipos_form = "SELECT nombre_tipo_activo FROM tipos_activo ORDER BY nombre_tipo_activo ASC";
 $result_tipos_form = $conexion->query($sql_tipos_form);
@@ -444,7 +441,10 @@ if ($result_tipos_form && $result_tipos_form->num_rows > 0) {
         $opciones_tipo_activo_nombres[] = $row_form['nombre_tipo_activo'];
     }
 }
-
+$regionales_usuarios = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional'];
+$empresas_usuarios_disponibles = ['Arpesod', 'Finansueños'];
+$regionales_opciones_traslado_usuario = $regionales_usuarios; 
+$empresas_opciones_traslado_usuario = $empresas_usuarios_disponibles;
 $opciones_tipo_equipo = ['Portátil', 'Mesa', 'Todo en 1']; 
 $opciones_red = ['Cableada', 'Inalámbrica', 'Ambas']; 
 $opciones_estado_general_editable = ['Bueno', 'Regular', 'Malo', 'En Mantenimiento', 'Nuevo'];
@@ -452,7 +452,8 @@ $opciones_so = ['Windows 10', 'Windows 11', 'Linux', 'MacOS'];
 $opciones_offimatica = ['Office 365', 'Office Home And Business', 'Office 2021', 'Office 2019', 'Office 2016', 'LibreOffice', 'Google Workspace'];
 $opciones_antivirus = ['Microsoft Defender', 'Bitdefender', 'ESET NOD32 Antivirus', 'McAfee Total Protection', 'Kaspersky'];
 
-// ------------ DEFINICIONES DE FUNCIONES HELPER -------------
+
+// ------------ DEFINICIONES DE FUNCIONES HELPER (Sin Cambios)-------------
 if (!function_exists('input_editable')) {
     function input_editable($name, $label, $value, $form_id_suffix_func, $type = 'text', $is_readonly = true, $is_required = false, $col_class = 'col-md-4') {
         $readonly_attr = $is_readonly ? 'readonly' : '';
@@ -518,7 +519,9 @@ if (!function_exists('textarea_editable')) {
         #listaActivosTrasladar li { margin-bottom: 3px; }
         .activo-enfocado { border: 2px solid #0d6efd !important; box-shadow: 0 0 15px rgba(13,110,253,0.5) !important; animation: pulse-border 1.5s infinite; }
         @keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(13,110,253,0.7); } 70% { box-shadow: 0 0 0 10px rgba(13,110,253,0); } 100% { box-shadow: 0 0 0 0 rgba(13,110,253,0); } }
-       
+        /* Estilos para el nuevo acordeón */
+        .accordion-button:not(.collapsed) { color: #ffffff; background-color: #191970; }
+        .accordion-button:focus { box-shadow: 0 0 0 .25rem rgba(25, 25, 112, .2); }
     </style>
 </head>
 <body>
@@ -542,248 +545,214 @@ if (!function_exists('textarea_editable')) {
             <h3 class="page-title mb-4 text-center">Administrar Activos</h3>
             <?php if ($mensaje) echo "<div id='mensaje-global-container' class='mb-3'>$mensaje</div>"; ?>
 
-            <form method="get" class="row g-3 mb-4 align-items-end" action="editar.php">
-                <div class="col-md-3"> <label for="cedula_buscar" class="form-label">Buscar por Cédula (Responsable)</label>
-                    <input type="text" class="form-control form-control-sm" id="cedula_buscar" name="cedula" value="<?= htmlspecialchars($cedula_buscada) ?>" placeholder="Ingrese cédula">
-                </div>
-                <div class="col-md-2"> <label for="regional_buscar" class="form-label">Filtrar por Regional (Responsable)</label>
-                    <select name="regional" class="form-select form-select-sm" id="regional_buscar">
-                        <option value="">-- Todas --</option>
-                        <?php foreach ($regionales_usuarios as $r): ?>
-                            <option value="<?= htmlspecialchars($r) ?>" <?= ($r == $regional_buscada_usuario) ? 'selected' : '' ?>><?= htmlspecialchars($r) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-2"> <label for="empresa_buscar" class="form-label">Filtrar por Empresa (Responsable)</label>
-                    <select name="empresa" class="form-select form-select-sm" id="empresa_buscar">
-                        <option value="">-- Todas --</option>
-                        <?php foreach ($empresas_usuarios_disponibles as $e): ?>
-                            <option value="<?= htmlspecialchars($e) ?>" <?= ($e == $empresa_buscada_usuario) ? 'selected' : '' ?>><?= htmlspecialchars($e) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <div class="form-check mt-4 pt-2">
-                        <input class="form-check-input" type="checkbox" value="1" id="incluir_bajas_form" name="incluir_bajas" <?= $incluir_dados_baja ? 'checked' : '' ?>>
-                        <label class="form-check-label" for="incluir_bajas_form">
-                            Incluir Dados de Baja
-                        </label>
+            <div class="accordion mb-4" id="acordeon-filtros">
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFiltros" aria-expanded="true">
+                            <i class="bi bi-funnel-fill me-2"></i> Panel de Búsqueda y Administración
+                        </button>
+                    </h2>
+                    <div id="collapseFiltros" class="accordion-collapse collapse show">
+                        <div class="accordion-body">
+                            <form method="get" action="editar.php" id="form-filtros-avanzado">
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label for="filtro_q" class="form-label">Búsqueda General (Cédula, Nombre, Serie, Cód. Inv.)</label>
+                                        <input type="text" class="form-control" id="filtro_q" name="q" value="<?= htmlspecialchars($q_buscada) ?>">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filtro_tipo_activo" class="form-label">Tipo de Activo</label>
+                                        <select id="filtro_tipo_activo" name="tipo_activo" class="form-select">
+                                            <option value="">-- Todos --</option>
+                                            <?php foreach ($opciones_tipo_activo_nombres as $tipo): ?>
+                                                <option value="<?= htmlspecialchars($tipo) ?>" <?= ($tipo_activo_buscado == $tipo) ? 'selected' : '' ?>><?= htmlspecialchars($tipo) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filtro_estado" class="form-label">Estado del Activo</label>
+                                        <select id="filtro_estado" name="estado" class="form-select">
+                                            <option value="">-- Todos --</option>
+                                            <?php 
+                                            // Array de estados consistentes para el filtro
+                                            $estados_filtro_opciones = ['Bueno', 'Regular', 'Malo', 'En Mantenimiento', 'Nuevo', 'Dado de Baja'];
+                                            foreach ($estados_filtro_opciones as $estado_opcion): ?>
+                                                <option value="<?= htmlspecialchars($estado_opcion) ?>" <?= ($estado_buscado == $estado_opcion) ? 'selected' : '' ?>><?= htmlspecialchars($estado_opcion) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filtro_regional" class="form-label">Regional del Responsable</label>
+                                        <select id="filtro_regional" name="regional" class="form-select">
+                                            <option value="">-- Todas --</option>
+                                            <?php foreach ($regionales_usuarios as $r): ?>
+                                                <option value="<?= htmlspecialchars($r) ?>" <?= ($regional_buscada_usuario == $r) ? 'selected' : '' ?>><?= htmlspecialchars($r) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                     <div class="col-md-3">
+                                        <label for="filtro_empresa" class="form-label">Empresa del Responsable</label>
+                                        <select id="filtro_empresa" name="empresa" class="form-select">
+                                            <option value="">-- Todas --</option>
+                                            <?php foreach ($empresas_usuarios_disponibles as $e): ?>
+                                                <option value="<?= htmlspecialchars($e) ?>" <?= ($empresa_buscada_usuario == $e) ? 'selected' : '' ?>><?= htmlspecialchars($e) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filtro_fecha_desde" class="form-label">Fecha Compra Desde</label>
+                                        <input type="date" class="form-control" id="filtro_fecha_desde" name="fecha_desde" value="<?= htmlspecialchars($fecha_desde_buscada) ?>">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="filtro_fecha_hasta" class="form-label">Fecha Compra Hasta</label>
+                                        <input type="date" class="form-control" id="filtro_fecha_hasta" name="fecha_hasta" value="<?= htmlspecialchars($fecha_hasta_buscada) ?>">
+                                    </div>
+                                    <div class="col-md-3 align-self-end">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="filtro_incluir_bajas" name="incluir_bajas" value="1" <?= $incluir_dados_baja ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="filtro_incluir_bajas">Incluir Dados de Baja</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <hr class="my-3">
+                                <div class="d-flex justify-content-end gap-2">
+                                     <a href="editar.php" class="btn btn-secondary"><i class="bi bi-eraser-fill me-1"></i> Limpiar Búsqueda</a>
+                                     <button type="submit" class="btn btn-primary" style="background-color: #191970;"><i class="bi bi-search me-1"></i> Buscar</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-custom-search w-100 btn-sm">Buscar</button>
-                </div>
-            </form>
-        </div>
-
-        <?php if ($criterio_buscada_activo): ?>
-            <div class="mt-4">
-                <?php if (isset($activos_encontrados) && !empty($activos_encontrados)) :
-                    $asset_forms_data = [];
-                    foreach ($activos_encontrados as $activo_map) {
-                        $info_key = $activo_map['cedula_responsable']; 
-                        if (!isset($asset_forms_data[$info_key]['info'])) {
-                            $asset_forms_data[$info_key]['info'] = [
-                                'nombre' => $activo_map['nombre_responsable'],
-                                'cargo' => $activo_map['cargo_responsable'],
-                                'cedula' => $activo_map['cedula_responsable'],
-                                'empresa_responsable' => $activo_map['empresa_del_responsable'] ?? '',
-                                'regional_responsable' => $activo_map['regional_responsable'] ?? '' 
-                            ];
+            </div>
+            <?php if ($criterio_buscada_activo): ?>
+                <div class="mt-4">
+                    <?php if (isset($activos_encontrados) && !empty($activos_encontrados)) :
+                        $asset_forms_data = [];
+                        foreach ($activos_encontrados as $activo_map) {
+                            $info_key = $activo_map['cedula_responsable']; 
+                            if (!isset($asset_forms_data[$info_key]['info'])) {
+                                $asset_forms_data[$info_key]['info'] = [
+                                    'nombre' => $activo_map['nombre_responsable'],
+                                    'cargo' => $activo_map['cargo_responsable'],
+                                    'cedula' => $activo_map['cedula_responsable'],
+                                    'empresa_responsable' => $activo_map['empresa_del_responsable'] ?? '',
+                                    'regional_responsable' => $activo_map['regional_responsable'] ?? '' 
+                                ];
+                            }
+                            $asset_forms_data[$info_key]['activos'][] = $activo_map;
                         }
-                        $asset_forms_data[$info_key]['activos'][] = $activo_map;
-                    }
 
-                    foreach ($asset_forms_data as $cedula_grupo => $data_grupo):
-                ?>
-                        <div class="user-asset-group mt-4" id="user-group-<?= htmlspecialchars($cedula_grupo) ?>">
-                            <div class="user-info-header">
-                                <div class="info-block">
-                                    <h4><?= htmlspecialchars($data_grupo['info']['nombre']) ?> <small class="text-muted">(C.C: <?= htmlspecialchars($data_grupo['info']['cedula']) ?>)</small></h4>
-                                    <p><strong>Cargo:</strong> <?= htmlspecialchars($data_grupo['info']['cargo']) ?>
-                                        | <strong>Empresa:</strong> <?= htmlspecialchars($data_grupo['info']['empresa_responsable']) ?>
-                                        | <strong>Regional:</strong> <?= htmlspecialchars($data_grupo['info']['regional_responsable']) ?>
-                                    </p>
-                                </div>
-                                <div class="actions-block">
-                                    <?php if (tiene_permiso_para('trasladar_activo')): ?>
-                                    <button type="button" class="btn btn-sm btn-outline-primary btn-transfer-modal"
-                                        data-bs-toggle="modal" data-bs-target="#trasladoModal"
-                                        data-cedula-origen="<?= htmlspecialchars($data_grupo['info']['cedula']) ?>"
-                                        data-nombre-origen="<?= htmlspecialchars($data_grupo['info']['nombre']) ?>"
-                                        data-empresa-origen="<?= htmlspecialchars($data_grupo['info']['empresa_responsable'] ?? '') ?>"
-                                        data-regional-origen="<?= htmlspecialchars($data_grupo['info']['regional_responsable'] ?? '') ?>">
-                                        <i class="bi bi-truck"></i> Trasladar Seleccionados
-                                    </button>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-
-                            <?php foreach ($data_grupo['activos'] as $index => $activo_individual):
-                                $form_id_individual_activo = $activo_individual['id'];
-                                $id_activo_focus_get = $_GET['id_activo_focus'] ?? null;
-                                $clase_enfocada = ($id_activo_focus_get && $id_activo_focus_get == $activo_individual['id']) ? 'activo-enfocado' : '';
-                            ?>
-                                <div class="asset-form-outer-container <?= $clase_enfocada ?>" id="activo_container_<?= htmlspecialchars($form_id_individual_activo) ?>">
-                                    <div class="asset-form-header">
+                        foreach ($asset_forms_data as $cedula_grupo => $data_grupo):
+                    ?>
+                            <div class="user-asset-group mt-4" id="user-group-<?= htmlspecialchars($cedula_grupo) ?>">
+                                <div class="user-info-header">
+                                    <div class="info-block">
+                                        <h4><?= htmlspecialchars($data_grupo['info']['nombre']) ?> <small class="text-muted">(C.C: <?= htmlspecialchars($data_grupo['info']['cedula']) ?>)</small></h4>
+                                        <p><strong>Cargo:</strong> <?= htmlspecialchars($data_grupo['info']['cargo']) ?>
+                                            | <strong>Empresa:</strong> <?= htmlspecialchars($data_grupo['info']['empresa_responsable']) ?>
+                                            | <strong>Regional:</strong> <?= htmlspecialchars($data_grupo['info']['regional_responsable']) ?>
+                                        </p>
+                                    </div>
+                                    <div class="actions-block">
                                         <?php if (tiene_permiso_para('trasladar_activo')): ?>
-                                            <input type="checkbox" data-asset-id="<?= $activo_individual['id'] ?>" class="form-check-input checkbox-transfer" title="Seleccionar para trasladar" data-tipo-activo="<?= htmlspecialchars($activo_individual['nombre_tipo_activo'] ?? 'N/A') ?>" data-serie-activo="<?= htmlspecialchars($activo_individual['serie']) ?>">
+                                        <button type="button" class="btn btn-sm btn-outline-primary btn-transfer-modal"
+                                            data-bs-toggle="modal" data-bs-target="#trasladoModal"
+                                            data-cedula-origen="<?= htmlspecialchars($data_grupo['info']['cedula']) ?>"
+                                            data-nombre-origen="<?= htmlspecialchars($data_grupo['info']['nombre']) ?>"
+                                            data-empresa-origen="<?= htmlspecialchars($data_grupo['info']['empresa_responsable'] ?? '') ?>"
+                                            data-regional-origen="<?= htmlspecialchars($data_grupo['info']['regional_responsable'] ?? '') ?>">
+                                            <i class="bi bi-truck"></i> Trasladar Seleccionados
+                                        </button>
                                         <?php endif; ?>
-                                        <h6> Activo #<?= ($index + 1) ?>: <?= htmlspecialchars($activo_individual['nombre_tipo_activo'] ?? 'N/A') ?> - Serie: <?= htmlspecialchars($activo_individual['serie']) ?> 
-                                        </h6>
-                                    </div>
-                                    <form method="post" action="editar.php" id="form-activo-<?= htmlspecialchars($form_id_individual_activo) ?>">
-                                        <input type="hidden" name="id" value="<?= $activo_individual['id'] ?>">
-                                        <input type="hidden" name="cedula_original_busqueda" value="<?= htmlspecialchars($cedula_buscada) ?>">
-                                        <input type="hidden" name="regional_original_busqueda" value="<?= htmlspecialchars($regional_buscada_usuario) ?>">
-                                        <input type="hidden" name="empresa_original_busqueda" value="<?= htmlspecialchars($empresa_buscada_usuario) ?>">
-                                        <input type="hidden" name="incluir_bajas_original_busqueda" value="<?= $incluir_dados_baja ? '1' : '0' ?>">
-
-                                        <div class="row">
-                                            <?php
-                                            input_editable('nombre_usuario_display', 'Usuario Resp.', $data_grupo['info']['nombre'], $form_id_individual_activo, 'text', true);
-                                            input_editable('cargo_usuario_display', 'Cargo Resp.', $data_grupo['info']['cargo'], $form_id_individual_activo, 'text', true);
-                                            select_editable('tipo_activo_nombre', 'Tipo Activo', $opciones_tipo_activo_nombres, $activo_individual['nombre_tipo_activo'] ?? '', $form_id_individual_activo, true, true);
-                                            input_editable('marca', 'Marca', $activo_individual['marca'], $form_id_individual_activo, 'text', true, true);
-                                            input_editable('serie', 'Serie', $activo_individual['serie'], $form_id_individual_activo, 'text', true, true);
-                                            select_editable('estado', 'Estado Activo', $opciones_estado_general_editable, $activo_individual['estado'], $form_id_individual_activo, true, true);
-                                            input_editable('valor_aproximado', 'Valor Aprox.', $activo_individual['valor_aproximado'], $form_id_individual_activo, 'number', true, true);
-                                            input_editable('fecha_compra', 'Fecha de Compra', $activo_individual['fecha_compra'] ?? '', $form_id_individual_activo, 'date', true, true);
-
-                                            if (($activo_individual['nombre_tipo_activo'] ?? '') == 'Computador' || !empty($activo_individual['procesador'])) {
-                                                echo "<div class='col-12'><hr class='my-2'><h6 class='mt-2 text-muted small'>Detalles de Computador</h6></div>";
-                                                input_editable('procesador', 'Procesador', $activo_individual['procesador'], $form_id_individual_activo, 'text', true, false, 'col-md-3');
-                                                input_editable('ram', 'RAM', $activo_individual['ram'], $form_id_individual_activo, 'text', true, false, 'col-md-3');
-                                                input_editable('disco_duro', 'Disco Duro', $activo_individual['disco_duro'], $form_id_individual_activo, 'text', true, false, 'col-md-3');
-                                                select_editable('tipo_equipo', 'Tipo Equipo (PC)', $opciones_tipo_equipo, $activo_individual['tipo_equipo'], $form_id_individual_activo, true, false, 'col-md-3');
-                                                select_editable('red', 'Red (PC)', $opciones_red, $activo_individual['red'], $form_id_individual_activo, true, false, 'col-md-3');
-                                                select_editable('sistema_operativo', 'SO', $opciones_so, $activo_individual['sistema_operativo'], $form_id_individual_activo, true, false, 'col-md-3');
-                                                select_editable('offimatica', 'Offimática', $opciones_offimatica, $activo_individual['offimatica'], $form_id_individual_activo, true, false, 'col-md-3');
-                                                select_editable('antivirus', 'Antivirus', $opciones_antivirus, $activo_individual['antivirus'], $form_id_individual_activo, true, false, 'col-md-3');
-                                            }
-                                            textarea_editable('detalles', 'Detalles Adicionales', $activo_individual['detalles'], $form_id_individual_activo, true, 'col-md-12');
-                                            ?>
-                                        </div>
-                                        <div class="action-buttons">
-                                            <?php if (tiene_permiso_para('editar_activo_detalles')): ?>
-                                                <button type="button" class="btn btn-sm btn-outline-info" onclick="habilitarCamposActivo('<?= htmlspecialchars($form_id_individual_activo) ?>')"> <i class="bi bi-pencil-square"></i> Habilitar Edición</button>
-                                                <button type="submit" name="editar_activo_submit" class="btn btn-sm btn-success" disabled> <i class="bi bi-check-circle-fill"></i> Guardar Cambios</button>
-                                            <?php endif; ?>
-                                            <?php if (tiene_permiso_para('dar_baja_activo')): ?>
-                                                <button type="button" class="btn btn-sm btn-warning btn-dar-baja" data-bs-toggle="modal" data-bs-target="#modalDarBaja" data-id-activo="<?= $activo_individual['id'] ?>" data-serie-activo="<?= htmlspecialchars($activo_individual['serie']) ?>">
-                                                    <i class="bi bi-arrow-down-circle"></i> Dar de Baja
-                                                </button>
-                                            <?php endif; ?>
-                                            <?php if (tiene_permiso_para('eliminar_activo_fisico')): ?>
-                                                <button type="submit" name="eliminar_activo_submit" class="btn btn-sm btn-danger" onclick="return confirm('ADVERTENCIA:\n¿Está seguro que desea ELIMINAR PERMANENTEMENTE este activo (Serie: <?= htmlspecialchars($activo_individual['serie']) ?>)?\n\nEsta acción NO SE PUEDE DESHACER y borrará el activo de la base de datos.\n\nPara inactivar un activo conservando su historial, utilice la opción DAR DE BAJA.')"> <i class="bi bi-trash3-fill"></i> Eliminar Físico</button>
-                                            <?php endif; ?>
-                                        </div>
-                                    </form>
-                                    <div class="mt-3 text-center">
-                                        <a href="historial.php?id_activo=<?= htmlspecialchars($activo_individual['id']) ?>" class="btn btn-sm btn-outline-secondary" target="_blank">
-                                            <i class="bi bi-list-task"></i> Ver Historial Detallado
-                                        </a>
                                     </div>
                                 </div>
-                            <?php endforeach; ?>
-                        </div>
-                <?php
-                    endforeach; 
-                ?>
-                <?php elseif ($criterio_buscada_activo && empty($activos_encontrados)) : ?>
-                    <div class="alert alert-info mt-3">No se encontraron activos con los criterios de búsqueda especificados.</div>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-    </div> 
 
-    <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="infoModalTitle"><i class="bi bi-exclamation-triangle-fill"></i> Atención</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                <?php foreach ($data_grupo['activos'] as $index => $activo_individual):
+                                    $form_id_individual_activo = $activo_individual['id'];
+                                    $id_activo_focus_get = $_GET['id_activo_focus'] ?? null;
+                                    $clase_enfocada = ($id_activo_focus_get && $id_activo_focus_get == $activo_individual['id']) ? 'activo-enfocado' : '';
+                                ?>
+                                    <div class="asset-form-outer-container <?= $clase_enfocada ?>" id="activo_container_<?= htmlspecialchars($form_id_individual_activo) ?>">
+                                        <div class="asset-form-header">
+                                            <?php if (tiene_permiso_para('trasladar_activo')): ?>
+                                                <input type="checkbox" data-asset-id="<?= $activo_individual['id'] ?>" class="form-check-input checkbox-transfer" title="Seleccionar para trasladar" data-tipo-activo="<?= htmlspecialchars($activo_individual['nombre_tipo_activo'] ?? 'N/A') ?>" data-serie-activo="<?= htmlspecialchars($activo_individual['serie']) ?>">
+                                            <?php endif; ?>
+                                            <h6> Activo #<?= ($index + 1) ?>: <?= htmlspecialchars($activo_individual['nombre_tipo_activo'] ?? 'N/A') ?> - Serie: <?= htmlspecialchars($activo_individual['serie']) ?> 
+                                            </h6>
+                                        </div>
+                                        <form method="post" action="editar.php" id="form-activo-<?= htmlspecialchars($form_id_individual_activo) ?>">
+                                            <input type="hidden" name="id" value="<?= $activo_individual['id'] ?>">
+                                            <input type="hidden" name="cedula_original_busqueda" value="<?= htmlspecialchars($q_buscada) ?>">
+                                            <input type="hidden" name="regional_original_busqueda" value="<?= htmlspecialchars($regional_buscada_usuario) ?>">
+                                            <input type="hidden" name="empresa_original_busqueda" value="<?= htmlspecialchars($empresa_buscada_usuario) ?>">
+                                            <input type="hidden" name="incluir_bajas_original_busqueda" value="<?= $incluir_dados_baja ? '1' : '0' ?>">
+
+                                            <div class="row">
+                                                <?php
+                                                input_editable('nombre_usuario_display', 'Usuario Resp.', $data_grupo['info']['nombre'], $form_id_individual_activo, 'text', true);
+                                                input_editable('cargo_usuario_display', 'Cargo Resp.', $data_grupo['info']['cargo'], $form_id_individual_activo, 'text', true);
+                                                select_editable('tipo_activo_nombre', 'Tipo Activo', $opciones_tipo_activo_nombres, $activo_individual['nombre_tipo_activo'] ?? '', $form_id_individual_activo, true, true);
+                                                input_editable('marca', 'Marca', $activo_individual['marca'], $form_id_individual_activo, 'text', true, true);
+                                                input_editable('serie', 'Serie', $activo_individual['serie'], $form_id_individual_activo, 'text', true, true);
+                                                select_editable('estado', 'Estado Activo', $opciones_estado_general_editable, $activo_individual['estado'], $form_id_individual_activo, true, true);
+                                                input_editable('valor_aproximado', 'Valor Aprox.', $activo_individual['valor_aproximado'], $form_id_individual_activo, 'number', true, true);
+                                                input_editable('fecha_compra', 'Fecha de Compra', $activo_individual['fecha_compra'] ?? '', $form_id_individual_activo, 'date', true, true);
+
+                                                if (($activo_individual['nombre_tipo_activo'] ?? '') == 'Computador' || !empty($activo_individual['procesador'])) {
+                                                    echo "<div class='col-12'><hr class='my-2'><h6 class='mt-2 text-muted small'>Detalles de Computador</h6></div>";
+                                                    input_editable('procesador', 'Procesador', $activo_individual['procesador'], $form_id_individual_activo, 'text', true, false, 'col-md-3');
+                                                    input_editable('ram', 'RAM', $activo_individual['ram'], $form_id_individual_activo, 'text', true, false, 'col-md-3');
+                                                    input_editable('disco_duro', 'Disco Duro', $activo_individual['disco_duro'], $form_id_individual_activo, 'text', true, false, 'col-md-3');
+                                                    select_editable('tipo_equipo', 'Tipo Equipo (PC)', $opciones_tipo_equipo, $activo_individual['tipo_equipo'], $form_id_individual_activo, true, false, 'col-md-3');
+                                                    select_editable('red', 'Red (PC)', $opciones_red, $activo_individual['red'], $form_id_individual_activo, true, false, 'col-md-3');
+                                                    select_editable('sistema_operativo', 'SO', $opciones_so, $activo_individual['sistema_operativo'], $form_id_individual_activo, true, false, 'col-md-3');
+                                                    select_editable('offimatica', 'Offimática', $opciones_offimatica, $activo_individual['offimatica'], $form_id_individual_activo, true, false, 'col-md-3');
+                                                    select_editable('antivirus', 'Antivirus', $opciones_antivirus, $activo_individual['antivirus'], $form_id_individual_activo, true, false, 'col-md-3');
+                                                }
+                                                textarea_editable('detalles', 'Detalles Adicionales', $activo_individual['detalles'], $form_id_individual_activo, true, 'col-md-12');
+                                                ?>
+                                            </div>
+                                            <div class="action-buttons">
+                                                <?php if (tiene_permiso_para('editar_activo_detalles')): ?>
+                                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="habilitarCamposActivo('<?= htmlspecialchars($form_id_individual_activo) ?>')"> <i class="bi bi-pencil-square"></i> Habilitar Edición</button>
+                                                    <button type="submit" name="editar_activo_submit" class="btn btn-sm btn-success" disabled> <i class="bi bi-check-circle-fill"></i> Guardar Cambios</button>
+                                                <?php endif; ?>
+                                                <?php if (tiene_permiso_para('dar_baja_activo')): ?>
+                                                    <button type="button" class="btn btn-sm btn-warning btn-dar-baja" data-bs-toggle="modal" data-bs-target="#modalDarBaja" data-id-activo="<?= $activo_individual['id'] ?>" data-serie-activo="<?= htmlspecialchars($activo_individual['serie']) ?>">
+                                                        <i class="bi bi-arrow-down-circle"></i> Dar de Baja
+                                                    </button>
+                                                <?php endif; ?>
+                                                <?php if (tiene_permiso_para('eliminar_activo_fisico')): ?>
+                                                    <button type="submit" name="eliminar_activo_submit" class="btn btn-sm btn-danger" onclick="return confirm('ADVERTENCIA:\n¿Está seguro que desea ELIMINAR PERMANENTEMENTE este activo (Serie: <?= htmlspecialchars($activo_individual['serie']) ?>)?\n\nEsta acción NO SE PUEDE DESHACER y borrará el activo de la base de datos.\n\nPara inactivar un activo conservando su historial, utilice la opción DAR DE BAJA.')"> <i class="bi bi-trash3-fill"></i> Eliminar Físico</button>
+                                                <?php endif; ?>
+                                            </div>
+                                        </form>
+                                        <div class="mt-3 text-center">
+                                            <a href="historial.php?id_activo=<?= htmlspecialchars($activo_individual['id']) ?>" class="btn btn-sm btn-outline-secondary" target="_blank">
+                                                <i class="bi bi-list-task"></i> Ver Historial Detallado
+                                            </a>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php
+                        endforeach; 
+                        ?>
+                    <?php elseif ($criterio_buscada_activo && empty($activos_encontrados)) : ?>
+                        <div class="alert alert-info mt-3">No se encontraron activos con los criterios de búsqueda especificados.</div>
+                    <?php endif; ?>
                 </div>
-                <div class="modal-body">
-                    <p id="infoModalMessage"></p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button>
-                </div>
-            </div>
-        </div>
-    </div>
+            <?php endif; ?>
+        </div> 
+
+    <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="infoModalTitle"><i class="bi bi-exclamation-triangle-fill"></i> Atención</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p id="infoModalMessage"></p></div><div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal">Entendido</button></div></div></div></div>
 
     <?php if (tiene_permiso_para('trasladar_activo')): ?>
-    <div class="modal fade" id="trasladoModal" tabindex="-1" aria-labelledby="trasladoModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title" id="trasladoModalLabel">Trasladar Activos Seleccionados</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6 border-end">
-                            <p>Del usuario: <strong id="nombreUsuarioOrigenTrasladoModal"></strong><br>
-                                C.C: <strong id="cedulaUsuarioOrigenTrasladoModal"></strong><br>
-                                Empresa Origen (Usuario): <strong id="empresaUsuarioOrigenTrasladoModal"></strong><br>
-                                Regional Origen (Usuario): <strong id="regionalUsuarioOrigenTrasladoModal"></strong></p>
-                            <h6>Activos Seleccionados para Traslado:</h6>
-                            <ul id="listaActivosTrasladar" class="mb-3"></ul>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Ingrese los datos del <strong>NUEVO</strong> responsable:</h6>
-                            <div class="mb-2"><label for="nueva_cedula_traslado" class="form-label form-label-sm">Nueva Cédula</label><input type="text" class="form-control form-control-sm" id="nueva_cedula_traslado" required></div>
-                            <div class="mb-2"><label for="nuevo_nombre_traslado" class="form-label form-label-sm">Nuevo Nombre Completo</label><input type="text" class="form-control form-control-sm" id="nuevo_nombre_traslado" readonly required></div>
-                            <div class="mb-2"><label for="nuevo_cargo_traslado" class="form-label form-label-sm">Nuevo Cargo</label><input type="text" class="form-control form-control-sm" id="nuevo_cargo_traslado" readonly required></div>
-                            
-                            <div class="mb-2">
-                                <label for="nueva_regional_traslado" class="form-label form-label-sm">Nueva Regional (del Usuario Destino)</label>
-                                <select class="form-select form-select-sm" id="nueva_regional_traslado" required>
-                                    <option value="">Seleccione Regional...</option>
-                                    <?php foreach ($regionales_opciones_traslado_usuario as $r_opt): ?>
-                                        <option value="<?= htmlspecialchars($r_opt) ?>"><?= htmlspecialchars($r_opt) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="mb-2">
-                                <label for="nueva_empresa_traslado" class="form-label form-label-sm">Nueva Empresa (del Usuario Destino)</label>
-                                <select class="form-select form-select-sm" id="nueva_empresa_traslado" required>
-                                    <option value="">Seleccione Empresa...</option>
-                                    <?php foreach ($empresas_opciones_traslado_usuario as $e_opt): ?>
-                                        <option value="<?= htmlspecialchars($e_opt) ?>"><?= htmlspecialchars($e_opt) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer"><button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-sm btn-primary" id="confirmarTrasladoBtn">Confirmar Traslado</button></div>
-            </div>
-        </div>
-    </div>
+    <div class="modal fade" id="trasladoModal" tabindex="-1" aria-labelledby="trasladoModalLabel" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="trasladoModalLabel">Trasladar Activos Seleccionados</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><div class="row"><div class="col-md-6 border-end"><p>Del usuario: <strong id="nombreUsuarioOrigenTrasladoModal"></strong><br>C.C: <strong id="cedulaUsuarioOrigenTrasladoModal"></strong><br>Empresa Origen (Usuario): <strong id="empresaUsuarioOrigenTrasladoModal"></strong><br>Regional Origen (Usuario): <strong id="regionalUsuarioOrigenTrasladoModal"></strong></p><h6>Activos Seleccionados para Traslado:</h6><ul id="listaActivosTrasladar" class="mb-3"></ul></div><div class="col-md-6"><h6>Ingrese los datos del <strong>NUEVO</strong> responsable:</h6><div class="mb-2"><label for="nueva_cedula_traslado" class="form-label form-label-sm">Nueva Cédula</label><input type="text" class="form-control form-control-sm" id="nueva_cedula_traslado" required></div><div class="mb-2"><label for="nuevo_nombre_traslado" class="form-label form-label-sm">Nuevo Nombre Completo</label><input type="text" class="form-control form-control-sm" id="nuevo_nombre_traslado" readonly required></div><div class="mb-2"><label for="nuevo_cargo_traslado" class="form-label form-label-sm">Nuevo Cargo</label><input type="text" class="form-control form-control-sm" id="nuevo_cargo_traslado" readonly required></div><div class="mb-2"><label for="nueva_regional_traslado" class="form-label form-label-sm">Nueva Regional (del Usuario Destino)</label><select class="form-select form-select-sm" id="nueva_regional_traslado" required><option value="">Seleccione Regional...</option><?php foreach ($regionales_opciones_traslado_usuario as $r_opt): ?><option value="<?= htmlspecialchars($r_opt) ?>"><?= htmlspecialchars($r_opt) ?></option><?php endforeach; ?></select></div><div class="mb-2"><label for="nueva_empresa_traslado" class="form-label form-label-sm">Nueva Empresa (del Usuario Destino)</label><select class="form-select form-select-sm" id="nueva_empresa_traslado" required><option value="">Seleccione Empresa...</option><?php foreach ($empresas_opciones_traslado_usuario as $e_opt): ?><option value="<?= htmlspecialchars($e_opt) ?>"><?= htmlspecialchars($e_opt) ?></option><?php endforeach; ?></select></div></div></div></div><div class="modal-footer"><button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-sm btn-primary" id="confirmarTrasladoBtn">Confirmar Traslado</button></div></div></div></div>
     <?php endif; ?>
 
     <?php if (tiene_permiso_para('dar_baja_activo')): ?>
-    <div class="modal fade" id="modalDarBaja" tabindex="-1" aria-labelledby="modalDarBajaLabel" aria-hidden="true">
-         <div class="modal-dialog">
-            <div class="modal-content">
-                <form method="post" action="editar.php" id="formDarBaja">
-                    <div class="modal-header"><h5 class="modal-title" id="modalDarBajaLabel">Confirmar Baja de Activo</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-                    <div class="modal-body">
-                        <p>¿Está seguro que desea dar de baja el activo con serie: <strong id="serieActivoBajaModal"></strong>?</p>
-                        <input type="hidden" name="id_activo_baja" id="idActivoBajaModal">
-                        <input type="hidden" name="cedula_original_busqueda" id="cedulaOriginalBusquedaBajaModal">
-                        <input type="hidden" name="regional_original_busqueda" id="regionalOriginalBusquedaBajaModal">
-                        <input type="hidden" name="empresa_original_busqueda" id="empresaOriginalBusquedaBajaModal">
-                        <input type="hidden" name="incluir_bajas_original_busqueda" id="incluirBajasOriginalBusquedaBajaModal">
-                        
-                        <div class="mb-3"><label for="motivo_baja" class="form-label">Motivo de la Baja <span class="text-danger">*</span></label><select class="form-select form-select-sm" id="motivo_baja" name="motivo_baja" required><option value="">Seleccione un motivo...</option><option value="Obsolescencia">Obsolescencia</option><option value="Daño irreparable">Daño irreparable</option><option value="Pérdida">Pérdida</option><option value="Robo">Robo</option><option value="Venta">Venta</option><option value="Donación">Donación</option><option value="Fin de vida útil">Fin de vida útil</option><option value="Otro">Otro (especificar en observaciones)</option></select></div>
-                        <div class="mb-3"><label for="observaciones_baja" class="form-label">Observaciones Adicionales</label><textarea class="form-control form-control-sm" id="observaciones_baja" name="observaciones_baja" rows="3"></textarea></div>
-                    </div>
-                    <div class="modal-footer"><button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" name="submit_dar_baja" class="btn btn-sm btn-warning">Confirmar Baja</button></div>
-                </form>
-            </div>
-        </div>
-    </div>
+    <div class="modal fade" id="modalDarBaja" tabindex="-1" aria-labelledby="modalDarBajaLabel" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><form method="post" action="editar.php" id="formDarBaja"><div class="modal-header"><h5 class="modal-title" id="modalDarBajaLabel">Confirmar Baja de Activo</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p>¿Está seguro que desea dar de baja el activo con serie: <strong id="serieActivoBajaModal"></strong>?</p><input type="hidden" name="id_activo_baja" id="idActivoBajaModal"><input type="hidden" name="cedula_original_busqueda" id="cedulaOriginalBusquedaBajaModal"><input type="hidden" name="regional_original_busqueda" id="regionalOriginalBusquedaBajaModal"><input type="hidden" name="empresa_original_busqueda" id="empresaOriginalBusquedaBajaModal"><input type="hidden" name="incluir_bajas_original_busqueda" id="incluirBajasOriginalBusquedaBajaModal"><div class="mb-3"><label for="motivo_baja" class="form-label">Motivo de la Baja <span class="text-danger">*</span></label><select class="form-select form-select-sm" id="motivo_baja" name="motivo_baja" required><option value="">Seleccione un motivo...</option><option value="Obsolescencia">Obsolescencia</option><option value="Daño irreparable">Daño irreparable</option><option value="Pérdida">Pérdida</option><option value="Robo">Robo</option><option value="Venta">Venta</option><option value="Donación">Donación</option><option value="Fin de vida útil">Fin de vida útil</option><option value="Otro">Otro (especificar en observaciones)</option></select></div><div class="mb-3"><label for="observaciones_baja" class="form-label">Observaciones Adicionales</label><textarea class="form-control form-control-sm" id="observaciones_baja" name="observaciones_baja" rows="3"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" name="submit_dar_baja" class="btn btn-sm btn-warning">Confirmar Baja</button></div></form></div></div></div>
     <?php endif; ?>
 
     <script>
@@ -924,10 +893,10 @@ if (!function_exists('textarea_editable')) {
 
                 document.getElementById('confirmarTrasladoBtn').addEventListener('click', function() {
                     let fd = new FormData();
-                    fd.append('cedula_original_busqueda', document.getElementById('cedula_buscar').value);
-                    fd.append('regional_original_busqueda', document.getElementById('regional_buscar').value);
-                    fd.append('empresa_original_busqueda', document.getElementById('empresa_buscar').value);
-                    fd.append('incluir_bajas_original_busqueda', document.getElementById('incluir_bajas_form').checked ? '1' : '0');
+                    fd.append('cedula_original_busqueda', document.getElementById('q') ? document.getElementById('q').value : (document.getElementById('cedula_buscar') ? document.getElementById('cedula_buscar').value : ''));
+                    fd.append('regional_original_busqueda', document.getElementById('filtro_regional') ? document.getElementById('filtro_regional').value : '');
+                    fd.append('empresa_original_busqueda', document.getElementById('filtro_empresa') ? document.getElementById('filtro_empresa').value : '');
+                    fd.append('incluir_bajas_original_busqueda', document.getElementById('filtro_incluir_bajas') ? (document.getElementById('filtro_incluir_bajas').checked ? '1' : '0') : '0');
                     
                     fd.append('action', 'confirmar_traslado_masivo');
                     
@@ -985,7 +954,7 @@ if (!function_exists('textarea_editable')) {
                             setTimeout(() => {
                                 let redirectUrl = `editar.php?`;
                                 const params = new URLSearchParams();
-                                if (fd.get('cedula_original_busqueda')) params.append('cedula', fd.get('cedula_original_busqueda'));
+                                if (fd.get('cedula_original_busqueda')) params.append('q', fd.get('cedula_original_busqueda'));
                                 if (fd.get('regional_original_busqueda')) params.append('regional', fd.get('regional_original_busqueda'));
                                 if (fd.get('empresa_original_busqueda')) params.append('empresa', fd.get('empresa_original_busqueda'));
                                 if (fd.get('incluir_bajas_original_busqueda') === '1') params.append('incluir_bajas', '1');
@@ -1012,10 +981,10 @@ if (!function_exists('textarea_editable')) {
                     
                     document.getElementById('idActivoBajaModal').value = idActivo;
                     document.getElementById('serieActivoBajaModal').textContent = serieActivo;
-                    document.getElementById('cedulaOriginalBusquedaBajaModal').value = document.getElementById('cedula_buscar') ? document.getElementById('cedula_buscar').value : '';
-                    document.getElementById('regionalOriginalBusquedaBajaModal').value = document.getElementById('regional_buscar') ? document.getElementById('regional_buscar').value : '';
-                    document.getElementById('empresaOriginalBusquedaBajaModal').value = document.getElementById('empresa_buscar') ? document.getElementById('empresa_buscar').value : '';
-                    document.getElementById('incluirBajasOriginalBusquedaBajaModal').value = document.getElementById('incluir_bajas_form') ? (document.getElementById('incluir_bajas_form').checked ? '1' : '0') : '0';
+                    document.getElementById('cedulaOriginalBusquedaBajaModal').value = document.getElementById('filtro_q') ? document.getElementById('filtro_q').value : '';
+                    document.getElementById('regionalOriginalBusquedaBajaModal').value = document.getElementById('filtro_regional') ? document.getElementById('filtro_regional').value : '';
+                    document.getElementById('empresaOriginalBusquedaBajaModal').value = document.getElementById('filtro_empresa') ? document.getElementById('filtro_empresa').value : '';
+                    document.getElementById('incluirBajasOriginalBusquedaBajaModal').value = document.getElementById('filtro_incluir_bajas') ? (document.getElementById('filtro_incluir_bajas').checked ? '1' : '0') : '0';
                 });
             }
             <?php endif; ?>

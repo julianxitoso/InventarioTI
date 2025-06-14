@@ -1,348 +1,252 @@
 <?php
-require_once 'backend/auth_check.php';
+// Se usa __DIR__ para crear una ruta absoluta y robusta.
+require_once __DIR__ . '/backend/auth_check.php';
 restringir_acceso_pagina(['admin', 'tecnico', 'auditor', 'registrador']);
 
-require_once 'backend/db.php';
+// Se usa __DIR__ para la conexión a la BD.
+require_once __DIR__ . '/backend/db.php';
+
+// --- INICIO DEL BLOQUE DE VERIFICACIÓN DE CONEXIÓN MEJORADO ---
+$db_connection_error = null;
 if (isset($conn) && !isset($conexion)) { $conexion = $conn; }
-if (!isset($conexion) || !$conexion || (method_exists($conexion, 'connect_error') && $conexion->connect_error) ) {
-    error_log("Error de conexión BD en buscar.php: " . ($conexion->connect_error ?? 'Desconocido'));
-    die("Error de conexión a la base de datos. Por favor, intente más tarde o contacte al administrador.");
+
+// Verificamos si la variable $conexion existe y si no hay errores de conexión.
+if (!isset($conexion) || (method_exists($conexion, 'connect_error') && $conexion->connect_error) || $conexion === false) {
+    $db_connection_error = "Error crítico de conexión a la base de datos. No se pueden cargar los filtros. Contacte al administrador.";
+    error_log("Fallo de conexión en buscar.php: " . ($conexion->connect_error ?? 'La variable de conexión no está definida o es falsa.'));
+} else {
+    // Solo si la conexión es exitosa, preparamos las opciones para los filtros.
+    $conexion->set_charset("utf8mb4");
+    $opciones_tipos = $conexion->query("SELECT id_tipo_activo, nombre_tipo_activo FROM tipos_activo ORDER BY nombre_tipo_activo")->fetch_all(MYSQLI_ASSOC);
+    $opciones_estados = $conexion->query("SELECT DISTINCT estado FROM activos_tecnologicos WHERE estado IS NOT NULL AND estado != '' ORDER BY estado")->fetch_all(MYSQLI_ASSOC);
 }
-$conexion->set_charset("utf8mb4");
+// --- FIN DEL BLOQUE DE VERIFICACIÓN ---
+
+$regionales = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional']; 
+$empresas_disponibles = ['Arpesod', 'Finansueños'];
 
 $nombre_usuario_actual_sesion = $_SESSION['nombre_usuario_completo'] ?? 'Usuario';
 $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
-
-$cedula_buscada = trim($_GET['cedula'] ?? '');
-$regional_buscada = trim($_GET['regional'] ?? ''); // Ahora se refiere a la regional del usuario
-$empresa_buscada = trim($_GET['empresa'] ?? '');   // Ahora se refiere a la empresa del usuario
-$incluir_dados_baja = isset($_GET['incluir_bajas']) && $_GET['incluir_bajas'] === '1';
-$buscar_todos_flag = isset($_GET['buscar_todos']) && $_GET['buscar_todos'] === '1';
-
-$activos_encontrados = [];
-$regionales = ['Popayan', 'Bordo', 'Santander', 'Valle', 'Pasto', 'Tuquerres', 'Huila', 'Nacional']; 
-$empresas_disponibles = ['Arpesod', 'Finansueños'];
-$error_consulta = "";
-$criterio_busqueda_activo = false;
-
-if (!empty($cedula_buscada) || !empty($regional_buscada) || !empty($empresa_buscada) || $buscar_todos_flag) {
-    $criterio_busqueda_activo = true;
-    
-    $sql = "SELECT 
-                a.*, 
-                u.usuario AS cedula_responsable,
-                u.nombre_completo AS nombre_responsable,
-                c.nombre_cargo AS cargo_responsable,
-                u.regional AS regional_responsable,
-                u.empresa AS empresa_del_responsable,
-                ta.nombre_tipo_activo
-            FROM 
-                activos_tecnologicos a
-            LEFT JOIN 
-                usuarios u ON a.id_usuario_responsable = u.id
-            LEFT JOIN 
-                tipos_activo ta ON a.id_tipo_activo = ta.id_tipo_activo
-            LEFT JOIN 
-                cargos c ON u.id_cargo = c.id_cargo
-            WHERE 1=1";
-    
-    $params = [];
-    $types = '';
-
-    if (!$incluir_dados_baja) {
-        $sql .= " AND a.estado != 'Dado de Baja'";
-    }
-
-    if (!empty($cedula_buscada)) {
-        $sql .= " AND u.usuario = ?";
-        $params[] = $cedula_buscada;
-        $types .= 's';
-    }
-    // --- CAMBIO: Filtro por regional del usuario ---
-    if (!empty($regional_buscada)) {
-        $sql .= " AND u.regional = ?";
-        $params[] = $regional_buscada;
-        $types .= 's';
-    }
-    // --- CAMBIO: Filtro por empresa del usuario ---
-    if (!empty($empresa_buscada)) {
-        $sql .= " AND u.empresa = ?"; 
-        $params[] = $empresa_buscada;
-        $types .= 's';
-    }
-    $sql .= " ORDER BY u.nombre_completo ASC, u.usuario ASC, a.id ASC";
-
-    $stmt = $conexion->prepare($sql);
-    if ($stmt) {
-        if (!empty($params)) {
-            $stmt->bind_param($types, ...$params);
-        }
-        if (!$stmt->execute()) {
-            $error_consulta = "Error al ejecutar la búsqueda. Intente más tarde.";
-            error_log("Error al ejecutar consulta en buscar.php: " . $stmt->error . " SQL: " . $sql . " Params: " . json_encode($params));
-        } else {
-            $resultado = $stmt->get_result();
-            $activos_encontrados = $resultado->fetch_all(MYSQLI_ASSOC);
-        }
-        $stmt->close();
-    } else {
-        $error_consulta = "Error al preparar la consulta de búsqueda. Contacte al administrador.";
-        error_log("Error al preparar consulta en buscar.php: " . $conexion->error . " SQL: " . $sql);
-    }
-}
-
-function getEstadoBadgeClass($estado) {
-    $estadoLower = strtolower(trim($estado));
-    switch ($estadoLower) {
-        case 'asignado': case 'activo': case 'operativo': case 'bueno': return 'badge bg-success';
-        case 'en mantenimiento': case 'en reparación': case 'regular': return 'badge bg-warning text-dark';
-        case 'dado de baja': case 'inactivo': case 'malo': return 'badge bg-danger';
-        case 'disponible': case 'en stock': return 'badge bg-info text-dark';
-        default: return 'badge bg-secondary';
-    }
-}
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Buscar Activos Tecnológicos - Inventario</title>
+    <title>Búsqueda Avanzada de Activos</title>
     <link rel="icon" type="image/x-icon" href="imagenes/icono.ico">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
-        body { 
-            background-color: #ffffff !important;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-top: 80px; 
-        }
-        .top-bar-custom {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 1030;
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 0.5rem 1.5rem; background-color: #f8f9fa; 
-            border-bottom: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .logo-container-top img { width: auto; height: 75px; object-fit: contain; margin-right: 15px; }
-        .user-info-top { font-size: 0.9rem; }
-        .container-main { margin-top: 20px; margin-bottom: 40px;}
-        h3.page-title { color: #333; font-weight: 600; margin-bottom: 25px; }
-        .btn-custom-search { background-color: #191970; color: white; }
-        .btn-custom-search:hover { background-color: #11114e; color: white; }
-        .table-minimalist { border-collapse: collapse; width: 100%; margin-top: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-radius: 6px; overflow: hidden; font-size: 0.85rem; }
-        .table-minimalist thead th { background-color: #343a40; color: #fff; font-weight: 600; text-align: left; padding: 10px 12px; border-bottom: 0; white-space: nowrap; }
-        .table-minimalist tbody td { padding: 9px 12px; border-bottom: 1px solid #e9ecef; color: #495057; vertical-align: middle; }
-        .table-minimalist tbody tr:last-child td { border-bottom: none; }
-        .table-minimalist tbody tr:hover { background-color: #f8f9fa; }
-        .badge { padding: 0.4em 0.6em; font-size: 0.85em; font-weight: 600; }
-        .btn-export { background-color: #198754; border-color: #198754; color: white; font-weight: 500; }
-        .btn-export:hover { background-color: #157347; border-color: #146c43; }
-        .user-asset-group { background-color: #fff; padding: 20px; margin-bottom: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
-        .user-info-header { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-        .user-info-header .info-block { flex-grow: 1; min-width: 250px; }
-        .user-info-header .info-block h4 { color: #191970; font-weight: 600; margin-bottom: 2px; font-size: 1.1rem;}
-        .user-info-header .info-block p { margin-bottom: 2px; font-size: 0.9rem; color: #555; }
-        .user-info-header .actions-block { margin-top: 10px; md-margin-top: 0;}
-        .asset-item-number { font-weight: bold; min-width: 25px; display: inline-block; text-align: right; margin-right: 5px;}
-        .form-label { font-weight: 500; color: #495057; }
-        .card.search-card { box-shadow: 0 2px 8px rgba(0,0,0,0.06); border:none; }
-        .table-responsive { margin-top: 10px; }
+        body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; padding-top: 80px; }
+        .top-bar-custom { position: fixed; top: 0; left: 0; right: 0; z-index: 1030; display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 1.5rem; background-color: #f8f9fa; border-bottom: 1px solid #dee2e6; }
+        .logo-container-top img { height: 75px; }
         .page-header-title { color: #191970; }
+        .accordion-button:not(.collapsed) { color: #ffffff; background-color: #191970; }
+        .accordion-button:focus { box-shadow: 0 0 0 .25rem rgba(25, 25, 112, .2); }
+        .loader { border: 5px solid #f3f3f3; border-radius: 50%; border-top: 5px solid #191970; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .user-asset-group { background-color: #fff; padding: 20px; margin-bottom: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+        .user-info-header { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        .user-info-header h4 { color: #191970; }
+        .table-minimalist { font-size: 0.85rem; }
     </style>
 </head>
 <body>
 
 <div class="top-bar-custom">
-    <div class="logo-container-top">
-        <a href="menu.php" title="Ir a Inicio"><img src="imagenes/logo.png" alt="Logo ARPESOD ASOCIADOS SAS"></a>
-    </div>
-    <div class="d-flex align-items-center">
-        <span class="text-dark me-3 user-info-top">
-            <i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?> 
-            (<?= htmlspecialchars(ucfirst($rol_usuario_actual_sesion)) ?>)
-        </span>
-        <form action="logout.php" method="post" class="d-flex">
-            <button class="btn btn-outline-danger btn-sm" type="submit"><i class="bi bi-box-arrow-right"></i> Cerrar sesión</button>
-        </form>
-    </div>
+    <div class="logo-container-top"><a href="menu.php" title="Ir a Inicio"><img src="imagenes/logo.png" alt="Logo"></a></div><div><span class="text-dark me-3"><i class="bi bi-person-circle"></i> <?= htmlspecialchars($nombre_usuario_actual_sesion) ?> (<?= htmlspecialchars(ucfirst($rol_usuario_actual_sesion)) ?>)</span><form action="logout.php" method="post" class="d-flex"><button class="btn btn-outline-danger btn-sm" type="submit"><i class="bi bi-box-arrow-right"></i> Cerrar sesión</button></form></div>
 </div>
 
-<div class="container-main container mt-4"> 
-    <div class="card search-card p-4">
-        <h3 class="page-title mb-4 text-center page-header-title">Buscar Activos Tecnológicos</h3>
-        <form class="row g-3 mb-2 align-items-end" method="get" action="buscar.php">
-            <div class="col-md-3">
-                <label for="cedula_buscar" class="form-label">Cédula del Responsable</label>
-                <input type="text" class="form-control form-control-sm" id="cedula_buscar" name="cedula" value="<?= htmlspecialchars($cedula_buscada) ?>" placeholder="Número de cédula">
-            </div>
-            <div class="col-md-2">
-                <label for="regional_buscar" class="form-label">Regional</label>
-                <select name="regional" class="form-select form-select-sm" id="regional_buscar">
-                    <option value="">-- Todas --</option>
-                    <?php foreach ($regionales as $r): ?>
-                        <option value="<?= htmlspecialchars($r) ?>" <?= ($r == $regional_buscada) ? 'selected' : '' ?>><?= htmlspecialchars($r) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label for="empresa_buscar" class="form-label">Empresa</label>
-                <select name="empresa" class="form-select form-select-sm" id="empresa_buscar">
-                    <option value="">-- Todas --</option>
-                    <?php foreach ($empresas_disponibles as $e): ?>
-                        <option value="<?= htmlspecialchars($e) ?>" <?= ($e == $empresa_buscada) ? 'selected' : '' ?>><?= htmlspecialchars($e) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <div class="form-check mt-4 pt-2">
-                    <input class="form-check-input" type="checkbox" value="1" id="incluir_bajas" name="incluir_bajas" <?= $incluir_dados_baja ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="incluir_bajas">Incluir Dados de Baja</label>
-                </div>
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-custom-search w-100 btn-sm">Buscar</button>
-            </div>
-            
-            <?php 
-            // MODIFICACIÓN: Añadir verificación de rol para el botón "Mostrar Todos"
-            if ( (in_array($rol_usuario_actual_sesion, ['admin', 'auditor'])) && 
-                 empty($cedula_buscada) && 
-                 empty($regional_buscada) && 
-                 empty($empresa_buscada) && 
-                 !$criterio_busqueda_activo 
-               ): 
-            ?>
-            <div class="col-12 text-center mt-3"> 
-                <button type="submit" name="buscar_todos" value="1" class="btn btn-outline-secondary btn-sm">
-                    Mostrar Todos los Activos <?= !$incluir_dados_baja ? '(Operativos)' : '(Incl. Bajas)' ?>
-                </button>
-            </div>
-            <?php endif; ?>
-        </form>
-    </div>
-
-    <?php if (!empty($error_consulta)): ?>
-        <div class="alert alert-danger mt-3"><strong>Error en la consulta:</strong> <?= htmlspecialchars($error_consulta) ?></div>
-    <?php endif; ?>
-
-    <?php if ($criterio_busqueda_activo && empty($error_consulta)): ?>
-        <div class="mt-4">
-        <?php if (!empty($activos_encontrados)) :
-            $activos_agrupados = [];
-            foreach ($activos_encontrados as $activo_item) {
-                $key_grupo = $activo_item['cedula_responsable'] . '-' . $activo_item['nombre_responsable'];
-                if (!isset($activos_agrupados[$key_grupo])) {
-                    $activos_agrupados[$key_grupo]['info'] = [
-                        'cedula' => $activo_item['cedula_responsable'],
-                        'nombre' => $activo_item['nombre_responsable'],
-                        'cargo' => $activo_item['cargo_responsable'],
-                        'empresa_responsable' => $activo_item['empresa_del_responsable'] ?? 'N/A',
-                        // --- CAMBIO: Agregar la regional del responsable para el encabezado del grupo ---
-                        'regional_del_responsable' => $activo_item['regional_responsable'] ?? 'N/A'
-                    ];
-                    $activos_agrupados[$key_grupo]['activos'] = [];
-                }
-                $activos_agrupados[$key_grupo]['activos'][] = $activo_item;
-            }
-        ?>
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5>Resultados de la Búsqueda: <span class="badge bg-secondary"><?= count($activos_encontrados) ?> activo(s) encontrado(s)</span></h5>
-                <form method="get" action="exportar_excel.php" target="_blank" style="display: inline-block;">
-                    <input type="hidden" name="tipo_informe" value="busqueda_personalizada">
-                    <input type="hidden" name="cedula_export" value="<?= htmlspecialchars($cedula_buscada) ?>">
-                    <input type="hidden" name="regional_export" value="<?= htmlspecialchars($regional_buscada) ?>">
-                    <input type="hidden" name="empresa_export" value="<?= htmlspecialchars($empresa_buscada) ?>">
-                    <input type="hidden" name="incluir_bajas_export" value="<?= $incluir_dados_baja ? '1' : '0' ?>">
-                    <button type="submit" class="btn btn-sm btn-export">
-                        <i class="bi bi-file-earmark-excel-fill"></i> Exportar Resultados
+<div class="container mt-4">
+    <h3 class="mb-4 text-center page-header-title">Búsqueda Avanzada de Activos</h3>
+    
+    <?php if ($db_connection_error): ?>
+        <div class="alert alert-danger">
+            <strong>Error Crítico:</strong> <?= htmlspecialchars($db_connection_error) ?>
+        </div>
+    <?php else: ?>
+        <div class="accordion mb-4" id="acordeon-filtros">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingOne">
+                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                        <i class="bi bi-funnel-fill me-2"></i> Panel de Filtros
                     </button>
-                </form>
-            </div>
-
-            <?php
-            foreach ($activos_agrupados as $grupo_info_activos) :
-                $responsable_info = $grupo_info_activos['info'];
-                $activos_del_responsable = $grupo_info_activos['activos'];
-                $asset_item_number = 1;
-            ?>
-                <div class="user-asset-group">
-                    <div class="user-info-header">
-                        <div class="info-block">
-                            <h4><?= htmlspecialchars($responsable_info['nombre']) ?></h4>
-                            <p><strong>Cédula:</strong> <?= htmlspecialchars($responsable_info['cedula']) ?> |
-                                <strong>Cargo:</strong> <?= htmlspecialchars($responsable_info['cargo']) ?> |
-                                <strong>Regional:</strong> <?= htmlspecialchars($responsable_info['regional_del_responsable']) ?> |
-                                <strong>Empresa:</strong> <?= htmlspecialchars($responsable_info['empresa_responsable']) ?>
-                            </p>
-                        </div>
-                        <div class="actions-block">
-                            <?php
-                            $hay_activos_operativos = false;
-                            foreach ($activos_del_responsable as $a_temp) {
-                                if ($a_temp['estado'] != 'Dado de Baja') { $hay_activos_operativos = true; break; }
-                            }
-                            if ($hay_activos_operativos && (function_exists('tiene_permiso_para') && tiene_permiso_para('generar_informes'))):
-                            ?>
-
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table-minimalist table-hover">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Tipo</th>
-                                    <th>Marca</th><th>Serie</th><th>Estado</th>
-                                    <th>Regional (Resp.)</th>
-                                    <th>Empresa (Resp.)</th> 
-                                    <th>Valor</th><th>Fecha Reg.</th><th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            <?php foreach ($activos_del_responsable as $activo) : ?>
-                                <tr class="<?= ($activo['estado'] == 'Dado de Baja') ? 'table-danger' : '' ?>">
-                                    <td><span class="asset-item-number"><?= $asset_item_number++ ?>.</span></td>
-                                    <td><?= htmlspecialchars($activo['nombre_tipo_activo'] ?? 'N/A') ?></td>
-                                    <td><?= htmlspecialchars($activo['marca']) ?></td>
-                                    <td><?= htmlspecialchars($activo['serie']) ?></td>
-                                    <td><span class="<?= getEstadoBadgeClass($activo['estado']) ?>"><?= htmlspecialchars($activo['estado']) ?></span></td>
-                                    <td><?= htmlspecialchars($activo['regional_responsable'] ?? 'N/A') ?></td>
-                                    <td><?= htmlspecialchars($activo['empresa_del_responsable'] ?? 'N/A') ?></td>
-                                    <td>$<?= htmlspecialchars(number_format(floatval($activo['valor_aproximado']), 0, ',', '.')) ?></td>
-                                    <td><?= htmlspecialchars(date("d/m/Y", strtotime($activo['fecha_registro']))) ?></td>
-                                    <td>
-                                        <a href="historial.php?id_activo=<?= htmlspecialchars($activo['id']) ?>" class="btn btn-sm btn-outline-info" title="Ver Historial Detallado" target="_blank"><i class="bi bi-list-task"></i></a>
-                                        <?php 
-                                        $cedula_para_editar = $activo['cedula_responsable'] ?? '';
-                                        // Para el enlace de editar, asumimos que la regional y empresa que se envían son las del activo
-                                        // Si estas columnas ya no existen en `activos_tecnologicos`, deberás decidir qué enviar
-                                        // o modificar el script `editar.php` para que no las requiera o las obtenga de otra forma.
-                                        // Por ahora, se deja como estaba, lo que podría causar problemas si `editar.php` las espera.
-                                        $regional_del_activo_para_editar = $activo['regional'] ?? ''; // Intentará obtener de a.regional
-                                        $empresa_del_activo_para_editar = $activo['Empresa'] ?? '';   // Intentará obtener de a.Empresa
-
-                                        if ((function_exists('tiene_permiso_para') && tiene_permiso_para('editar_activo_detalles')) && $activo['estado'] != 'Dado de Baja'): ?>
-                                        <a href="editar.php?cedula=<?= htmlspecialchars($cedula_para_editar) ?>&regional=<?= htmlspecialchars($regional_del_activo_para_editar) ?>&empresa=<?= htmlspecialchars($empresa_del_activo_para_editar) ?>&id_activo_focus=<?= $activo['id'] ?>" class="btn btn-sm btn-outline-primary" title="Editar este activo">
-                                            <i class="bi bi-pencil-fill"></i>
-                                        </a>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                </h2>
+                <div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne">
+                    <div class="accordion-body">
+                        <form id="form-filtros">
+                            <div class="row g-3">
+                                <div class="col-md-12"><label for="filtro-q" class="form-label">Búsqueda General</label><input type="text" class="form-control" id="filtro-q" name="q" placeholder="Buscar por Cédula, Nombre, Serie, Cód. Inventario..."></div>
+                                <div class="col-md-3"><label for="filtro-tipo" class="form-label">Tipo de Activo</label><select id="filtro-tipo" name="tipo_activo" class="form-select"><option value="">-- Todos --</option><?php foreach ($opciones_tipos as $tipo): ?><option value="<?= $tipo['id_tipo_activo'] ?>"><?= htmlspecialchars($tipo['nombre_tipo_activo']) ?></option><?php endforeach; ?></select></div>
+                                <div class="col-md-3"><label for="filtro-estado" class="form-label">Estado del Activo</label><select id="filtro-estado" name="estado" class="form-select"><option value="">-- Todos --</option><?php foreach ($opciones_estados as $estado): ?><option value="<?= htmlspecialchars($estado['estado']) ?>"><?= htmlspecialchars($estado['estado']) ?></option><?php endforeach; ?></select></div>
+                                <div class="col-md-3"><label for="filtro-regional" class="form-label">Regional del Responsable</label><select id="filtro-regional" name="regional" class="form-select"><option value="">-- Todas --</option><?php foreach ($regionales as $r): ?><option value="<?= htmlspecialchars($r) ?>"><?= htmlspecialchars($r) ?></option><?php endforeach; ?></select></div>
+                                <div class="col-md-3"><label for="filtro-empresa" class="form-label">Empresa del Responsable</label><select id="filtro-empresa" name="empresa" class="form-select"><option value="">-- Todas --</option><?php foreach ($empresas_disponibles as $e): ?><option value="<?= htmlspecialchars($e) ?>"><?= htmlspecialchars($e) ?></option><?php endforeach; ?></select></div>
+                                <div class="col-md-3"><label for="filtro-fecha-desde" class="form-label">Fecha Compra Desde</label><input type="date" class="form-control" id="filtro-fecha-desde" name="fecha_desde"></div>
+                                <div class="col-md-3"><label for="filtro-fecha-hasta" class="form-label">Fecha Compra Hasta</label><input type="date" class="form-control" id="filtro-fecha-hasta" name="fecha_hasta"></div>
+                                <div class="col-md-3 align-self-end"><div class="form-check"><input class="form-check-input" type="checkbox" id="filtro-incluir-bajas" name="incluir_bajas" value="1"><label class="form-check-label" for="filtro-incluir-bajas">Incluir Dados de Baja</label></div></div>
+                            </div>
+                            <hr class="my-3">
+                            <div class="d-flex justify-content-end gap-2">
+                                 <button type="button" id="btn-limpiar" class="btn btn-secondary"><i class="bi bi-eraser-fill me-1"></i> Limpiar Filtros</button>
+                                 <button type="submit" class="btn btn-primary" style="background-color: #191970;"><i class="bi bi-search me-1"></i> Aplicar Filtros</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
-            <?php endforeach; ?>
-        <?php elseif ($criterio_busqueda_activo): ?>
-            <div class="alert alert-warning mt-3">No se encontraron activos que coincidan con los criterios de búsqueda especificados.</div>
-        <?php endif; ?>
+            </div>
         </div>
     <?php endif; ?>
+
+    <div id="contenedor-resultados" class="mt-4">
+        <div id="loader" class="d-none justify-content-center mt-5"><div class="loader"></div></div>
+        </div>
 </div>
 
-<?php if (isset($conexion)) { $conexion->close(); } ?>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Solo ejecutar el script si el formulario de filtros existe (es decir, si no hubo error de BD)
+    const formFiltros = document.getElementById('form-filtros');
+    if (!formFiltros) return;
+
+    const btnLimpiar = document.getElementById('btn-limpiar');
+    const contenedorResultados = document.getElementById('contenedor-resultados');
+    const loader = document.getElementById('loader');
+
+    // --- FUNCIÓN 1: OBTENER CLASE PARA BADGE DE ESTADO ---
+    function getEstadoBadgeClass(estado) {
+        if (!estado) return 'badge bg-secondary';
+        const estadoLower = estado.toLowerCase().trim();
+        switch (estadoLower) {
+            case 'asignado': case 'activo': case 'operativo': case 'bueno': return 'badge bg-success';
+            case 'en mantenimiento': case 'en reparación': case 'regular': return 'badge bg-warning text-dark';
+            case 'dado de baja': case 'inactivo': case 'malo': return 'badge bg-danger';
+            case 'disponible': case 'en stock': return 'badge bg-info text-dark';
+            default: return 'badge bg-secondary';
+        }
+    }
+
+    // --- FUNCIÓN 2: RENDERIZAR RESULTADOS EN HTML ---
+    function renderizarResultados(activos) {
+        if (!activos || activos.length === 0) {
+            contenedorResultados.innerHTML = `<div class="alert alert-warning text-center">No se encontraron activos que coincidan con los criterios.</div>`;
+            return;
+        }
+
+        const activosAgrupados = activos.reduce((acc, activo) => {
+            const key = activo.cedula_responsable || 'SIN-ASIGNAR';
+            if (!acc[key]) {
+                acc[key] = {
+                    info: {
+                        cedula: activo.cedula_responsable || 'N/A',
+                        nombre: activo.nombre_responsable || 'Activos sin responsable asignado',
+                        cargo: activo.cargo_responsable,
+                        regional_del_responsable: activo.regional_responsable,
+                        empresa_responsable: activo.empresa_del_responsable
+                    },
+                    activos: []
+                };
+            }
+            acc[key].activos.push(activo);
+            return acc;
+        }, {});
+
+        let html = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5>Resultados: <span class="badge bg-secondary">${activos.length} activo(s)</span></h5>
+            </div>
+        `;
+        
+        for (const key in activosAgrupados) {
+            const grupo = activosAgrupados[key];
+            const info = grupo.info;
+            const activosDelGrupo = grupo.activos;
+            
+            html += `
+            <div class="user-asset-group">
+                <div class="user-info-header">
+                    <div>
+                        <h4>${info.nombre || ''}</h4>
+                        <p><strong>Cédula:</strong> ${info.cedula} | <strong>Cargo:</strong> ${info.cargo || 'N/A'} | <strong>Regional:</strong> ${info.regional_del_responsable || 'N/A'} | <strong>Empresa:</strong> ${info.empresa_responsable || 'N/A'}</p>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-minimalist table-hover">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Tipo</th><th>Marca</th><th>Serie</th><th>Estado</th>
+                                <th>Valor</th><th>F. Compra</th><th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            activosDelGrupo.forEach((activo, index) => {
+                const fechaCompra = activo.fecha_compra ? new Date(activo.fecha_compra + 'T00:00:00').toLocaleDateString('es-CO') : 'N/A';
+                const valorFormateado = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(activo.valor_aproximado || 0);
+
+                html += `
+                    <tr class="${activo.estado === 'Dado de Baja' ? 'table-danger' : ''}">
+                        <td>${index + 1}.</td>
+                        <td>${activo.nombre_tipo_activo || 'N/A'}</td>
+                        <td>${activo.marca || ''}</td>
+                        <td>${activo.serie || ''}</td>
+                        <td><span class="${getEstadoBadgeClass(activo.estado)}">${activo.estado || ''}</span></td>
+                        <td>${valorFormateado}</td>
+                        <td>${fechaCompra}</td>
+                        <td>
+                            <a href="historial.php?id_activo=${activo.id}" class="btn btn-sm btn-outline-info" title="Ver Historial" target="_blank"><i class="bi bi-list-task"></i></a>
+                            <a href="editar.php?id_activo_focus=${activo.id}" class="btn btn-sm btn-outline-primary" title="Editar Activo" target="_blank"><i class="bi bi-pencil-fill"></i></a>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table></div></div>`;
+        }
+        contenedorResultados.innerHTML = html;
+    }
+
+    // --- FUNCIÓN 3: REALIZAR BÚSQUEDA CON AJAX ---
+    async function realizarBusqueda() {
+        loader.classList.remove('d-none');
+        loader.classList.add('d-flex');
+        contenedorResultados.innerHTML = '';
+
+        const formData = new FormData(formFiltros);
+        const params = new URLSearchParams(formData).toString();
+
+        try {
+            const response = await fetch(`api/api_buscar.php?${params}`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Error desconocido en el servidor.' }));
+                throw new Error(`Error en la red: ${response.statusText}. Detalles: ${errorData.error}`);
+            }
+            const data = await response.json();
+            renderizarResultados(data);
+        } catch (error) {
+            console.error('Error en la búsqueda:', error);
+            contenedorResultados.innerHTML = `<div class="alert alert-danger">Error al cargar los datos. Por favor, revise la consola (F12) o contacte al administrador.</div>`;
+        } finally {
+            loader.classList.add('d-none');
+            loader.classList.remove('d-flex');
+        }
+    }
+
+    // --- EVENT LISTENERS ---
+    formFiltros.addEventListener('submit', function(event) {
+        event.preventDefault(); 
+        realizarBusqueda();
+    });
+
+    btnLimpiar.addEventListener('click', function() {
+        formFiltros.reset();
+        realizarBusqueda();
+    });
+
+});
+</script>
+
 </body>
 </html>

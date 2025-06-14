@@ -80,6 +80,12 @@ unset($_SESSION['error_global']);
         .btn-remove-asset { font-size: 0.8em; padding: 0.2rem 0.5rem; }
         #infoAplicacionesExistentes { font-size: 0.85em; }
         input:read-only, select:disabled { background-color: #e9ecef; cursor: not-allowed; }
+        .rating-invalid {
+            border: 1px solid #dc3545; /* Color de peligro de Bootstrap */
+            border-radius: 8px;
+            padding: 5px;
+            box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+        }
         .footer-custom {
             font-size: 0.9rem; background-color: #f8f9fa; 
             border-top: 1px solid #dee2e6; 
@@ -216,7 +222,7 @@ unset($_SESSION['error_global']);
                 <div class="row"><div class="col-md-4 mb-3"><label for="activo_antivirus" class="form-label">Antivirus</label><select class="form-select" id="activo_antivirus" name="activo_antivirus"><option value="">Seleccione...</option><?php foreach ($opciones_antivirus as $opcion): ?><option value="<?= htmlspecialchars($opcion) ?>"><?= htmlspecialchars($opcion) ?></option><?php endforeach; ?></select></div></div>
             </div>
             <div class="mb-3"><label for="detalles" class="form-label">Detalles Adicionales (Observaciones)</label><textarea class="form-control" id="detalles" name="activo_detalles" rows="2"></textarea></div>
-            <div class="mb-3"><label class="form-label d-block">Califica tu nivel de satisfacción con este activo:</label><div class="star-rating" id="activo_satisfaccion_rating_container"><input type="radio" id="activo_star5" name="activo_satisfaccion_rating" value="5" /><label class="star-label" for="activo_star5" title="5 estrellas">☆</label><input type="radio" id="activo_star4" name="activo_satisfaccion_rating" value="4" /><label class="star-label" for="activo_star4" title="4 estrellas">☆</label><input type="radio" id="activo_star3" name="activo_satisfaccion_rating" value="3" /><label class="star-label" for="activo_star3" title="3 estrellas">☆</label><input type="radio" id="activo_star2" name="activo_satisfaccion_rating" value="2" /><label class="star-label" for="activo_star2" title="2 estrellas">☆</label><input type="radio" id="activo_star1" name="activo_satisfaccion_rating" value="1" /><label class="star-label" for="activo_star1" title="1 estrella">☆</label></div></div>
+            <div class="mb-3"><label class="form-label d-block">Califica tu nivel de satisfacción con este activo: <span class="text-danger">*</span></label><div class="star-rating" id="activo_satisfaccion_rating_container"><input type="radio" id="activo_star5" name="activo_satisfaccion_rating" value="5" /><label class="star-label" for="activo_star5" title="5 estrellas">☆</label><input type="radio" id="activo_star4" name="activo_satisfaccion_rating" value="4" /><label class="star-label" for="activo_star4" title="4 estrellas">☆</label><input type="radio" id="activo_star3" name="activo_satisfaccion_rating" value="3" /><label class="star-label" for="activo_star3" title="3 estrellas">☆</label><input type="radio" id="activo_star2" name="activo_satisfaccion_rating" value="2" /><label class="star-label" for="activo_star2" title="2 estrellas">☆</label><input type="radio" id="activo_star1" name="activo_satisfaccion_rating" value="1" /><label class="star-label" for="activo_star1" title="1 estrella">☆</label></div></div>
             <button type="button" class="btn btn-success" id="btnAgregarActivoTabla"><i class="bi bi-plus-circle"></i> Agregar Activo a la Lista</button>
         </div>
 
@@ -286,6 +292,7 @@ unset($_SESSION['error_global']);
     const noActivosMensaje = document.getElementById('noActivosMensaje');
     const inputCedulaResponsable = document.getElementById('cedula');
     const camposPrincipalesResponsableIds = ['nombre', 'cargo', 'regional', 'empresa_responsable'];
+    const ratingContainer = document.getElementById('activo_satisfaccion_rating_container');
     const divInfoAplicaciones = document.createElement('div');
     divInfoAplicaciones.id = 'infoAplicacionesExistentes';
     divInfoAplicaciones.classList.add('form-text', 'mb-2', 'mt-1', 'p-2', 'border', 'border-info', 'rounded', 'bg-light');
@@ -377,28 +384,78 @@ unset($_SESSION['error_global']);
             }
         }
         
-        let camposRequeridosIncompletos = !activo.tipo_activo || !activo.marca || !activo.serie || !activo.estado || !activo.valor_aproximado || !activo.fecha_compra;
-        
-        // Validacion adicional para el tipo de impresora
-        if (activo.tipo_activo === 'Impresora' && !activo.tipo_impresora) {
-            camposRequeridosIncompletos = true;
-        }
+// --- INICIO DEL NUEVO BLOQUE DE VALIDACIÓN ---
 
-        if (camposRequeridosIncompletos) {
-            mostrarInfoModal('Campos incompletos', 'Por favor, complete todos los campos marcados con asterisco (*).');
-            activoValido = false;
-        }
+let formEsValido = true;
 
-        if (isNaN(parseFloat(activo.valor_aproximado)) && activo.valor_aproximado !== '') {
-            mostrarInfoModal('Formato incorrecto', 'El valor del activo debe ser un número.');
-            activoValido = false;
+// 1. Mapeo de los campos requeridos estándar y sus elementos.
+const camposAValidar = {
+    tipo_activo: document.getElementById('tipo_activo'),
+    marca: document.getElementById('marca'),
+    serie: document.getElementById('serie'),
+    estado: document.getElementById('estado'),
+    valor_aproximado: document.getElementById('valor_aproximado'),
+    fecha_compra: document.getElementById('fecha_compra')
+};
+
+// 2. Bucle para validar cada campo estándar.
+for (const key in camposAValidar) {
+    const campoElemento = camposAValidar[key];
+    // Usamos el objeto 'activo' que ya tiene los valores limpios (trim)
+    if (!activo[key]) {
+        campoElemento.classList.add('is-invalid');
+        formEsValido = false;
+    } else {
+        campoElemento.classList.remove('is-invalid');
+    }
+}
+
+    // 3. Validación especial para campos condicionales y personalizados.
+
+    // Valida el tipo de impresora SOLO si el activo es una 'Impresora'
+    const tipoImpresoraSelect = document.getElementById('tipo_impresora');
+    if (activo.tipo_activo === 'Impresora') {
+        if (!activo.tipo_impresora) {
+            tipoImpresoraSelect.classList.add('is-invalid');
+            formEsValido = false;
+        } else {
+            tipoImpresoraSelect.classList.remove('is-invalid');
         }
-        if (activoValido) {
-            activosParaGuardar.push(activo);
-            actualizarTablaActivos();
-            limpiarFormularioActivo(camposActivoForm);
-            campoTipoActivo.dispatchEvent(new Event('change'));
+    } else {
+        // Nos aseguramos de que no se quede marcado como inválido si cambiamos el tipo de activo.
+        tipoImpresoraSelect.classList.remove('is-invalid');
+    }
+
+    // Valida la calificación por estrellas
+    const ratingContainer = document.getElementById('activo_satisfaccion_rating_container');
+    if (!activo.satisfaccion_rating_name) {
+        ratingContainer.classList.add('rating-invalid');
+        formEsValido = false;
+    } else {
+        ratingContainer.classList.remove('rating-invalid');
+    }
+
+    // 4. Verificación final. Si algo falló, muestra el modal y detiene.
+    if (!formEsValido) {
+        mostrarInfoModal('Campos Incompletos', 'Por favor, complete todos los campos obligatorios resaltados en rojo.');
+    } else if (isNaN(parseFloat(activo.valor_aproximado))) {
+        // Mantenemos la validación de si el valor es un número, aunque el campo no esté vacío.
+        mostrarInfoModal('Formato incorrecto', 'El valor del activo debe ser un número.');
+        document.getElementById('valor_aproximado').classList.add('is-invalid');
+    } else {
+        // Si todo está perfecto, agrega el activo a la lista y limpia el formulario.
+        activosParaGuardar.push(activo);
+        actualizarTablaActivos();
+        limpiarFormularioActivo(camposActivoForm);
+        // Resetea cualquier campo que pudiera haber quedado como inválido
+        for (const key in camposAValidar) {
+            camposAValidar[key].classList.remove('is-invalid');
         }
+        tipoImpresoraSelect.classList.remove('is-invalid');
+        ratingContainer.classList.remove('rating-invalid');
+        campoTipoActivo.dispatchEvent(new Event('change'));
+    }
+    // --- FIN DEL NUEVO BLOQUE DE VALIDACIÓN ---
     });
     function actualizarTablaActivos() {
         tablaActivosBody.innerHTML = '';
@@ -662,9 +719,37 @@ unset($_SESSION['error_global']);
             }
         });
 
-        console.log("Campos ocultos creados. Enviando formulario...");
+        // --- INICIO DEL BLOQUE DE EVENTOS DE AUTOCORRECCIÓN ---
 
-        formPrincipal.submit();
+        // Lista de IDs de los campos a monitorear
+        const idsCamposParaMonitorear = [
+            'tipo_activo', 
+            'tipo_impresora', 
+            'marca', 
+            'serie', 
+            'estado', 
+            'valor_aproximado', 
+            'fecha_compra'
+        ];
+
+        // Agregamos un 'oyente' a cada campo
+        idsCamposParaMonitorear.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) {
+                // 'change' funciona bien para selects y fechas.
+                // 'input' funciona para campos de texto y número, para que se quite al escribir.
+                campo.addEventListener('change', () => campo.classList.remove('is-invalid'));
+                campo.addEventListener('input', () => campo.classList.remove('is-invalid'));
+            }
+        });
+
+        // El 'oyente' para las estrellas (que ya tenías) también lo dejamos aquí para tener todo junto
+        const ratingContainer = document.getElementById('activo_satisfaccion_rating_container');
+        if (ratingContainer) {
+            ratingContainer.addEventListener('change', function() {
+                this.classList.remove('rating-invalid');
+            });
+        }
     });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

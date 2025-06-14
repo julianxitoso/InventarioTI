@@ -317,7 +317,7 @@ $rol_usuario_actual_sesion = $_SESSION['rol_usuario'] ?? 'Desconocido';
     
     <script>
         document.addEventListener("DOMContentLoaded",function(){
-            const chatbotUrl = "https://asistenteaifront.onrender.com/"; 
+            const chatbotUrl = "https://aiarpesodfront.onrender.com/View/ChatbotInventarioTI/index.html"; 
             const chatButton = document.getElementById('chatbot-button');
             const chatbotContainer = document.getElementById('chatbot-container');
             const chatbotIframe = document.getElementById('chatbot-iframe');
